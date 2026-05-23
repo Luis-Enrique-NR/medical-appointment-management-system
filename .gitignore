@@ -1,0 +1,51 @@
+# =========================================================================
+# 1. ARCHIVOS DE CONFIGURACIÓN Y CREDENCIALES 
+# =========================================================================
+# Ignorar certificados SSL/TLS descargados para conectar con Aiven u otras DBs
+*.crt
+*.pem
+root.crt
+
+# Ignorar archivos locales que puedan contener secretos de desarrollo
+**/src/main/resources/application-local.properties
+**/src/main/resources/application-local.yml
+.env
+
+# =========================================================================
+# 2. COMPILACIÓN Y CONSTRUCCIÓN (Mven / Java)
+# =========================================================================
+# Carpetas de salida de compilación
+target/
+**/target/
+*.class
+
+# Archivos de empaquetado
+*.jar
+*.war
+*.ear
+
+# =========================================================================
+# 3. ENTORNOS DE DESARROLLO (IDEs)
+# =========================================================================
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse
+.metadata/
+.classpath
+.project
+.settings/
+
+# Visual Studio Code
+.vscode/
+
+# =========================================================================
+# 4. SISTEMA OPERATIVO Y LOGS
+# =========================================================================
+*.log
+.DS_Store
+Thumbs.db
