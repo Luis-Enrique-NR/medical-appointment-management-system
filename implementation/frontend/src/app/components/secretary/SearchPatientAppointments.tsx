@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, User, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { StatusBadge, AppointmentStatus } from "../StatusBadge";
 
@@ -46,21 +46,48 @@ export function SearchPatientAppointments() {
   const [mode, setMode] = useState<"patient" | "code">("patient");
   const [query, setQuery] = useState("");
   const [codeQuery, setCodeQuery] = useState("");
+  const [patients, setPatients] = useState<PatientResult[]>(PATIENT_DATA);
   const [results, setResults] = useState<PatientResult[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [searched, setSearched] = useState(false);
   const [codeResult, setCodeResult] = useState<{ id: string; patient: string; doctor: string; specialty: string; date: string; time: string; status: AppointmentStatus } | null>(null);
+  const [newPatientDni, setNewPatientDni] = useState("");
+  const [newPatientName, setNewPatientName] = useState("");
+  const [newPatientEmail, setNewPatientEmail] = useState("");
+  const [newPatientPhone, setNewPatientPhone] = useState("");
+  const [createError, setCreateError] = useState("");
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("medical-appointment-patients") : null;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as PatientResult[];
+        setPatients(parsed);
+      } catch {
+        setPatients(PATIENT_DATA);
+      }
+    }
+  }, []);
+
+  const savePatients = (updated: PatientResult[]) => {
+    setPatients(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("medical-appointment-patients", JSON.stringify(updated));
+    }
+  };
 
   const handleSearch = () => {
     setSearched(true);
     if (mode === "patient") {
       const q = query.toLowerCase();
-      const found = PATIENT_DATA.filter(p => p.name.toLowerCase().includes(q) || p.dni.includes(q));
+      const found = patients.filter(p => p.name.toLowerCase().includes(q) || p.dni.includes(q));
       setResults(found);
+      setNewPatientDni(query);
+      setCreateError("");
     } else {
       const q = codeQuery.toUpperCase();
       let found = null;
-      for (const p of PATIENT_DATA) {
+      for (const p of patients) {
         const a = p.appointments.find(ap => ap.id === q);
         if (a) { found = { ...a, patient: p.name }; break; }
       }
@@ -70,6 +97,61 @@ export function SearchPatientAppointments() {
 
   const toggleExpand = (dni: string) => {
     setExpanded(prev => ({ ...prev, [dni]: !prev[dni] }));
+  };
+
+  const handleCreatePatient = () => {
+    const dni = newPatientDni.trim();
+    const name = newPatientName.trim();
+    const email = newPatientEmail.trim();
+    const phone = newPatientPhone.trim();
+
+    if (!dni) {
+      setCreateError("El DNI es obligatorio.");
+      return;
+    }
+    if (!/^[0-9]{8}$/.test(dni)) {
+      setCreateError("El DNI debe tener 8 dígitos.");
+      return;
+    }
+    if (!name) {
+      setCreateError("El nombre del paciente es obligatorio.");
+      return;
+    }
+    if (!email) {
+      setCreateError("El correo es obligatorio.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setCreateError("Ingrese un correo electrónico válido.");
+      return;
+    }
+    if (!phone) {
+      setCreateError("El teléfono es obligatorio.");
+      return;
+    }
+    if (!/^[0-9]{9}$/.test(phone)) {
+      setCreateError("El teléfono debe tener 9 dígitos.");
+      return;
+    }
+    if (patients.some(p => p.dni === dni)) {
+      setCreateError("Ya existe un paciente con ese DNI.");
+      return;
+    }
+
+    const newPatient: PatientResult = {
+      dni,
+      name,
+      email,
+      phone,
+      totalAppointments: 0,
+      appointments: [],
+    };
+
+    const updated = [newPatient, ...patients];
+    savePatients(updated);
+    setResults([newPatient]);
+    setSearched(true);
+    setCreateError("");
   };
 
   return (
@@ -98,7 +180,19 @@ export function SearchPatientAppointments() {
               type="text"
               inputMode={mode === "code" ? "text" : undefined}
               value={mode === "patient" ? query : codeQuery}
-              onChange={e => mode === "patient" ? setQuery(e.target.value) : setCodeQuery(e.target.value)}
+              onChange={e => {
+                if (mode === "patient") {
+                  const next = e.target.value;
+                  setQuery(next);
+                  if (!next.trim()) {
+                    setSearched(false);
+                    setResults([]);
+                    setCreateError("");
+                  }
+                } else {
+                  setCodeQuery(e.target.value);
+                }
+              }}
               placeholder={mode === "patient" ? "Nombre del paciente o DNI..." : "Código de cita (ej: CLF-001)..."}
               className="w-full pl-9 pr-3 py-2.5 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30 focus:border-[#006FC1]"
               onKeyDown={e => e.key === "Enter" && handleSearch()}
@@ -165,6 +259,62 @@ export function SearchPatientAppointments() {
             ))}
           </div>
         )
+      )}
+      {mode === "patient" && searched && results.length === 0 && query.trim().length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-4">
+          <p className="text-sm text-gray-600 mb-4">No se encontró ningún paciente con ese DNI o nombre.</p>
+          <div className="grid gap-4">
+            <div>
+              <label className="block text-sm font-medium text-[#05576D] mb-1.5">DNI</label>
+              <input
+                type="text"
+                value={newPatientDni}
+                onChange={e => setNewPatientDni(e.target.value)}
+                placeholder="Ingrese DNI..."
+                className="w-full px-3 py-2 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30 focus:border-[#006FC1]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#05576D] mb-1.5">Nombre</label>
+              <input
+                type="text"
+                value={newPatientName}
+                onChange={e => setNewPatientName(e.target.value)}
+                placeholder="Nombre completo"
+                className="w-full px-3 py-2 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30 focus:border-[#006FC1]"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-[#05576D] mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={newPatientEmail}
+                  onChange={e => setNewPatientEmail(e.target.value)}
+                  placeholder="Email opcional"
+                  className="w-full px-3 py-2 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30 focus:border-[#006FC1]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#05576D] mb-1.5">Teléfono</label>
+                <input
+                  type="text"
+                  value={newPatientPhone}
+                  onChange={e => setNewPatientPhone(e.target.value)}
+                  placeholder="Teléfono opcional"
+                  className="w-full px-3 py-2 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30 focus:border-[#006FC1]"
+                />
+              </div>
+            </div>
+            {createError && <p className="text-sm text-[#FF82B6]">{createError}</p>}
+            <button
+              onClick={handleCreatePatient}
+              className="w-full px-4 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] transition-colors"
+            >
+              Guardar paciente y buscar
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Results: by code */}

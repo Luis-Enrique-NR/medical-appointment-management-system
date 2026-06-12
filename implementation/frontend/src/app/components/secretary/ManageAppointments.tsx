@@ -278,11 +278,79 @@ function CancelModal({
   );
 }
 
+interface DetailModalProps {
+  appointment: Appointment;
+  onClose: () => void;
+}
+
+function DetailModal({ appointment, onClose }: DetailModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-[#05576D]" style={{ fontSize: 17 }}>
+            Detalle de Cita
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div className="grid gap-3 text-sm text-gray-700">
+          <div className="flex justify-between">
+            <span className="text-gray-500">ID</span>
+            <span className="font-medium">{appointment.id}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Paciente</span>
+            <span className="font-medium">{appointment.patient}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">DNI</span>
+            <span className="font-medium">{appointment.dni}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Doctor</span>
+            <span className="font-medium">{appointment.doctor}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Especialidad</span>
+            <span className="font-medium">{appointment.specialty}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Fecha</span>
+            <span className="font-medium">{appointment.date}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Hora</span>
+            <span className="font-medium">{appointment.time}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Estado</span>
+            <StatusBadge status={appointment.status} />
+          </div>
+        </div>
+        <div className="mt-6 text-right">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ManageAppointments() {
   const [tab, setTab] = useState<"today" | "all">("today");
   const [search, setSearch] = useState("");
   const [appointments, setAppointments] =
     useState<Appointment[]>(ALL_APPOINTMENTS);
+  const [detailFor, setDetailFor] = useState<Appointment | null>(null);
   const [rescheduleFor, setRescheduleFor] =
     useState<Appointment | null>(null);
   const [cancelFor, setCancelFor] =
@@ -452,6 +520,7 @@ export function ManageAppointments() {
                       <div className="flex items-center gap-1.5">
                         <button
                           title="Ver detalle"
+                          onClick={() => setDetailFor(appt)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-[#006FC1] hover:bg-[#006FC1]/10 transition-colors"
                         >
                           <Eye size={16} />
@@ -495,6 +564,12 @@ export function ManageAppointments() {
         </div>
       </div>
 
+      {detailFor && (
+        <DetailModal
+          appointment={detailFor}
+          onClose={() => setDetailFor(null)}
+        />
+      )}
       {rescheduleFor && (
         <RescheduleModal
           appointment={rescheduleFor}

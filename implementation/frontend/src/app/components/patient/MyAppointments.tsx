@@ -85,13 +85,94 @@ function CancelModal({ appointment, onClose, onConfirm }: CancelModalProps) {
   );
 }
 
+interface RescheduleModalProps {
+  appointment: Appointment;
+  onClose: () => void;
+  onConfirm: (id: string, date: string, time: string) => void;
+}
+
+function RescheduleModal({ appointment, onClose, onConfirm }: RescheduleModalProps) {
+  const [date, setDate] = useState(appointment.date);
+  const [time, setTime] = useState(appointment.time);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-[#006FC1]/15 rounded-full flex items-center justify-center flex-shrink-0">
+            <RefreshCw size={20} className="text-[#006FC1]" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-800">Reprogramar Cita</h3>
+            <p className="text-sm text-gray-500">Seleccione la nueva fecha y hora de la cita.</p>
+          </div>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Reprogramar cita con <strong>{appointment.doctor}</strong> del <strong>{formatDate(appointment.date)}</strong> a las <strong>{appointment.time}</strong>.
+        </p>
+        <div className="grid gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-[#05576D] mb-1.5">Nueva fecha</label>
+            <input
+              type="date"
+              value={date}
+              onChange={e => { setDate(e.target.value); setError(""); }}
+              className="w-full px-3 py-2 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30 focus:border-[#006FC1]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#05576D] mb-1.5">Nueva hora</label>
+            <input
+              type="time"
+              value={time}
+              onChange={e => { setTime(e.target.value); setError(""); }}
+              className="w-full px-3 py-2 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30 focus:border-[#006FC1]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#05576D] mb-1.5">Motivo de reprogramación</label>
+            <textarea
+              value={reason}
+              onChange={e => { setReason(e.target.value); setError(""); }}
+              rows={3}
+              placeholder="Indique el motivo de la reprogramación..."
+              className="w-full px-3 py-2 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30 focus:border-[#006FC1] resize-none"
+            />
+          </div>
+          {error && <p className="text-xs text-[#FF82B6]">{error}</p>}
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+            Volver
+          </button>
+          <button
+            onClick={() => {
+              if (!date || !time || !reason.trim()) {
+                setError("Complete fecha, hora y motivo para continuar.");
+                return;
+              }
+              onConfirm(appointment.id, date, time);
+            }}
+            className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] transition-colors"
+          >
+            Confirmar Reprogramación
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface DetailModalProps {
   appointment: Appointment;
   onClose: () => void;
   onCancel: (a: Appointment) => void;
+  onReschedule: (a: Appointment) => void;
 }
 
-function DetailModal({ appointment, onClose, onCancel }: DetailModalProps) {
+function DetailModal({ appointment, onClose, onCancel, onReschedule }: DetailModalProps) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
@@ -117,7 +198,10 @@ function DetailModal({ appointment, onClose, onCancel }: DetailModalProps) {
             >
               Cancelar Cita
             </button>
-            <button className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] transition-colors">
+            <button
+              onClick={() => { onReschedule(appointment); onClose(); }}
+              className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] transition-colors"
+            >
               Reprogramar
             </button>
           </div>
@@ -138,12 +222,20 @@ export function MyAppointments() {
   const [history] = useState<Appointment[]>(HISTORY);
   const [detailFor, setDetailFor] = useState<Appointment | null>(null);
   const [cancelFor, setCancelFor] = useState<Appointment | null>(null);
+  const [rescheduleFor, setRescheduleFor] = useState<Appointment | null>(null);
   const [successMsg, setSuccessMsg] = useState("");
 
   const handleCancel = (id: string) => {
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelada" as AppointmentStatus } : a));
     setCancelFor(null);
     setSuccessMsg("La cita ha sido cancelada exitosamente.");
+    setTimeout(() => setSuccessMsg(""), 4000);
+  };
+
+  const handleReschedule = (id: string, date: string, time: string) => {
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, date, time, status: "Reprogramada" as AppointmentStatus } : a));
+    setRescheduleFor(null);
+    setSuccessMsg("La cita ha sido reprogramada exitosamente.");
     setTimeout(() => setSuccessMsg(""), 4000);
   };
 
@@ -205,7 +297,10 @@ export function MyAppointments() {
                 </button>
                 {appt.status === "Agendada" && (
                   <>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#006FC1] text-[#006FC1] text-sm hover:bg-[#006FC1]/5 transition-colors">
+                    <button
+                      onClick={() => setRescheduleFor(appt)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#006FC1] text-[#006FC1] text-sm hover:bg-[#006FC1]/5 transition-colors"
+                    >
                       <RefreshCw size={14} /> Reprogramar
                     </button>
                     <button
@@ -227,6 +322,7 @@ export function MyAppointments() {
           appointment={detailFor}
           onClose={() => setDetailFor(null)}
           onCancel={(a) => setCancelFor(a)}
+          onReschedule={(a) => setRescheduleFor(a)}
         />
       )}
       {cancelFor && (
@@ -234,6 +330,13 @@ export function MyAppointments() {
           appointment={cancelFor}
           onClose={() => setCancelFor(null)}
           onConfirm={handleCancel}
+        />
+      )}
+      {rescheduleFor && (
+        <RescheduleModal
+          appointment={rescheduleFor}
+          onClose={() => setRescheduleFor(null)}
+          onConfirm={handleReschedule}
         />
       )}
     </div>
