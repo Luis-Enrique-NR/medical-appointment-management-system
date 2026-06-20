@@ -12,9 +12,11 @@ import java.util.UUID;
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
 
-  // El JOIN FETCH trae al usuario y sus roles en un solo SELECT
-  @Query("SELECT u FROM Usuario u WHERE u.correo = :correo")
+  // El JOIN FETCH trae al usuario y su rol en un solo SELECT
+  @Query("SELECT u FROM Usuario u JOIN FETCH u.rol WHERE u.correo = :correo")
   Optional<Usuario> findByCorreoWithRoles(@Param("correo") String correo);
 
   Boolean existsByCorreo(String email);
+
+  Optional<Usuario> findByCorreo(String correo);
 }

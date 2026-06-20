@@ -1,18 +1,21 @@
 package pe.uni.software.medical_appointments.dto.mapper;
 
-import pe.uni.software.medical_appointments.dto.request.RegisterUserPatientRequest;
 import pe.uni.software.medical_appointments.dto.response.NewUserResponse;
+import pe.uni.software.medical_appointments.entity.Rol;
 import pe.uni.software.medical_appointments.entity.Usuario;
-import pe.uni.software.medical_appointments.entity.enums.Rol;
+
+import java.time.LocalDateTime;
 
 public class UsuarioMapper {
 
   public static Usuario buildUsuario(String correo, String hashPsw, Rol rol) {
     return Usuario.builder()
             .correo(correo)
-            .rol(String.valueOf(rol))
-            .password(hashPsw)
+            .rol(rol)
+            .passwordHash(hashPsw)
             .habilitado(Boolean.TRUE)
+            .fechaCreacion(LocalDateTime.now())
+            .intentosFallidos(0)
             .build();
   }
 

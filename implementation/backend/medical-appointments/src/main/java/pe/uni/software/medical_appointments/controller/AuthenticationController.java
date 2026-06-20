@@ -61,7 +61,7 @@ public class AuthenticationController {
   @Operation(summary = "Registro de usuario (empleado)",
           description = "Crear una cuenta activa de cliente con un JWT válido")
   @PostMapping("/register/employee")
-  @PreAuthorize("hasRole('ROLE_ADMINISTRADOR')")
+  @PreAuthorize("hasRole('ADMINISTRADOR')")
   public ResponseEntity<ApiResponse<Void>> registerEmployee(
           @Valid @RequestBody RegisterEmployeeRequest request
   ) {

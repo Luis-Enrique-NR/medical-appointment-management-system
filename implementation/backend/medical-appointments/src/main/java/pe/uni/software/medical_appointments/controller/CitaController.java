@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CitaController {
 
   @PostMapping("/registrar")
-  @PreAuthorize("hasRole('ROLE_PACIENTE') or hasRole('ROLE_SECRETARIA')")
+  @PreAuthorize("hasAnyRole('PACIENTE', 'SECRETARIA ADMINISTRATIVA')")
   public ResponseEntity<String> registrarCita() {
     return ResponseEntity.ok("Cita registrada");
   }

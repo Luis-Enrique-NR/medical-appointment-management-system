@@ -5,7 +5,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-import pe.uni.software.medical_appointments.entity.enums.Rol;
 
 @Data
 public class RegisterEmployeeRequest {
@@ -16,5 +15,5 @@ public class RegisterEmployeeRequest {
   @Size(min = 8, message = "Mínimo 8 caracteres")
   public String password;
   @NotNull(message = "Rol es obligatorio")
-  public Rol rol;
+  public Integer idRol;
 }
