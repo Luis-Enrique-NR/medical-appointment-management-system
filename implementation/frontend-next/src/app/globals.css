@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #006FC1;
+  --color-secondary: #0F96CB;
+  --color-teal: #0AC0AB;
+  --color-pink: #FF82B6;
+  --color-dark-teal: #05576D;
+  --color-background: #FFFFFF;
+  --color-danger: #d45c8b;
+
+  --font-sans: "DM Sans", "Outfit", system-ui, sans-serif;
+
+  --radius-card: 12px;
+  --radius-button: 8px;
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  body {
+    @apply font-sans text-gray-800 bg-gray-50 antialiased;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin { scrollbar-width: thin; }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+}
