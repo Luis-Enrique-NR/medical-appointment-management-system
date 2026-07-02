@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pe.uni.software.medical_appointments.application.dtos.paciente.request.RegisterPersonRequest;
 import pe.uni.software.medical_appointments.application.dtos.paciente.response.GetPatientResponse;
-import pe.uni.software.medical_appointments.application.dtos.persona.response.GetPersonResponse;
 import pe.uni.software.medical_appointments.application.services.PacienteService;
 import pe.uni.software.medical_appointments.util.ApiResponse;
 
