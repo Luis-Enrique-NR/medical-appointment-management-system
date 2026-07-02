@@ -1,5 +1,6 @@
 package pe.uni.software.medical_appointments.exception;
 
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import pe.uni.software.medical_appointments.util.ApiResponse;
 import java.nio.file.AccessDeniedException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -50,7 +52,7 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
   }
 
-  // 4. Errores de Validación
+  // 4. Errores de Validación (@RequestBody)
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ApiResponse<Object>> handleValidation(MethodArgumentNotValidException e) {
     Map<String, String> errores = new HashMap<>();
@@ -66,7 +68,22 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
   }
 
-  // 5. Errores de Base de Datos / Restricciones SQL
+  // 5. Errores de Validación (@PathVariable, @RequestParam)
+  @ExceptionHandler(ConstraintViolationException.class)
+  public ResponseEntity<ApiResponse<Object>> handleConstraintViolation(ConstraintViolationException e) {
+    String errores = e.getConstraintViolations().stream()
+            .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
+            .collect(Collectors.joining(", "));
+
+    ApiResponse<Object> response = new ApiResponse<>(
+            "Error de validación en los parámetros de la URL.",
+            "400",
+            errores
+    );
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+  }
+
+  // 6. Errores de Base de Datos / Restricciones SQL
   @ExceptionHandler(DataIntegrityViolationException.class)
   public ResponseEntity<ApiResponse<Object>> handleDataIntegrity(DataIntegrityViolationException e) {
     String detalle = e.getRootCause() != null ? e.getRootCause().getMessage() : e.getMessage();
@@ -78,7 +95,7 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
   }
 
-  // 6. Red de seguridad absoluta
+  // 7. Red de seguridad absoluta
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<Object>> handleAll(Exception e) {
     ApiResponse<Object> response = new ApiResponse<>(
