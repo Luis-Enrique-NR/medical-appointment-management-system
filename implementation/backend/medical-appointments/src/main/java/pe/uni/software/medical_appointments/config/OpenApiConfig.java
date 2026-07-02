@@ -10,7 +10,7 @@ import org.springdoc.core.models.GroupedOpenApi;
 import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import pe.uni.software.medical_appointments.entity.Usuario;
+import pe.uni.software.medical_appointments.domain.entities.Usuario;
 
 @Configuration
 public class OpenApiConfig {
@@ -40,7 +40,7 @@ public class OpenApiConfig {
   public GroupedOpenApi publicAPI() {
     return GroupedOpenApi.builder()
             .group("seguridad-api")
-            .packagesToScan("pe.uni.software.medical_appointments.controller")
+            .packagesToScan("pe.uni.software.medical_appointments.infraestructure.controllers")
             .pathsToMatch("/api/**")
             .build();
   }
