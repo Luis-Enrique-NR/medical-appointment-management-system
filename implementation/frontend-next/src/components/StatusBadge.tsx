@@ -1,6 +1,13 @@
 import type { AppointmentStatus } from "@/lib/types";
 
-const config: Record<AppointmentStatus, { bg: string; text: string; border: string }> = {
+const STATUS_MAP: Record<string, AppointmentStatus> = {
+  PROGRAMADO: "Agendada",
+  ATENDIDO: "Atendida",
+  CANCELADO: "Cancelada",
+  REPROGRAMADO: "Reprogramada",
+};
+
+const config: Record<string, { bg: string; text: string; border: string }> = {
   Agendada:     { bg: "bg-[#0AC0AB]/15", text: "text-[#0AC0AB]", border: "border-[#0AC0AB]/30" },
   Cancelada:    { bg: "bg-[#FF82B6]/15", text: "text-[#d45c8b]", border: "border-[#FF82B6]/30" },
   Atendida:     { bg: "bg-[#0F96CB]/15", text: "text-[#0F96CB]", border: "border-[#0F96CB]/30" },
@@ -12,8 +19,12 @@ const config: Record<AppointmentStatus, { bg: string; text: string; border: stri
   Aprobada:     { bg: "bg-[#0AC0AB]/15", text: "text-[#0AC0AB]", border: "border-[#0AC0AB]/30" },
 };
 
+const displayStatus = (status: AppointmentStatus): AppointmentStatus =>
+  STATUS_MAP[status] ?? status;
+
 export function StatusBadge({ status, className = "" }: { status: AppointmentStatus; className?: string }) {
-  const c = config[status];
+  const s = displayStatus(status);
+  const c = config[s] ?? config.Pendiente;
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${c.bg} ${c.text} ${c.border} ${className}`}>
       {status}
