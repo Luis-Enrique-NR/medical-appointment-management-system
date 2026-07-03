@@ -41,11 +41,11 @@ public class PacienteController {
   @Operation(summary = "Registrar un nuevo paciente", description = "Registra un nuevo paciente en el sistema.")
   @PostMapping
   @PreAuthorize("hasAnyRole('PACIENTE', 'SECRETARIA ADMINISTRATIVA')")
-  public ResponseEntity<ApiResponse<Void>> registerPatient(
+  public ResponseEntity<ApiResponse<GetPatientResponse>> registerPatient(
           @Valid @RequestBody RegisterPersonRequest request
   ) {
-    pacienteService.registerPatient(request);
-    return ResponseEntity.ok(new ApiResponse<>("Registro exitoso", "201", null));
+    GetPatientResponse data = pacienteService.registerPatient(request);
+    return ResponseEntity.ok(new ApiResponse<>("Registro exitoso", "201", data));
   }
 
   @Operation(summary = "Obtener paciente por DNI", description = "Busca y devuelve un paciente por su número de DNI.")

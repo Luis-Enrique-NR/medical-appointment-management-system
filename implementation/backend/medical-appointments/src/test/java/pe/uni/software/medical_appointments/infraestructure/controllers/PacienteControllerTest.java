@@ -16,6 +16,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import pe.uni.software.medical_appointments.application.dtos.paciente.request.RegisterPersonRequest;
 import pe.uni.software.medical_appointments.application.dtos.paciente.response.GetPatientResponse;
+import pe.uni.software.medical_appointments.application.services.CitaService;
 import pe.uni.software.medical_appointments.application.services.PacienteService;
 
 import pe.uni.software.medical_appointments.exception.ConflictException;
@@ -24,8 +25,7 @@ import pe.uni.software.medical_appointments.service.JwtService;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
+import java.util.UUID;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -44,6 +44,9 @@ class PacienteControllerTest {
 
     @MockitoBean
     private PacienteService pacienteService;
+
+    @MockitoBean
+    private CitaService citaService;
 
     @MockitoBean
     private JwtService jwtService; // Mock para evitar que el contexto falle
@@ -81,15 +84,23 @@ class PacienteControllerTest {
     void registerPatient_whenDatosValidosYRolePaciente_debeRetornar200() throws Exception {
         // Arrange
         RegisterPersonRequest request = buildValidRequest();
-        doNothing().when(pacienteService).registerPatient(any(RegisterPersonRequest.class));
+        GetPatientResponse mockResponse = GetPatientResponse.builder()
+                .idPaciente(UUID.randomUUID())
+                .dni(request.getDni())
+                .nombres(request.getNombres())
+                .apellidos(request.getApellidos())
+                .telefono(request.getTelefono())
+                .build();
+        when(pacienteService.registerPatient(any(RegisterPersonRequest.class))).thenReturn(mockResponse);
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/paciente")
+        mockMvc.perform(post("/api/v1/pacientes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Registro exitoso"))
-                .andExpect(jsonPath("$.codigo").value("200"));
+                .andExpect(jsonPath("$.codigo").value("201"))
+                .andExpect(jsonPath("$.data.idPaciente").isString());
     }
 
     @Test
@@ -97,15 +108,23 @@ class PacienteControllerTest {
     void registerPatient_whenDatosValidosYRoleSecretaria_debeRetornar200() throws Exception {
         // Arrange
         RegisterPersonRequest request = buildValidRequest();
-        doNothing().when(pacienteService).registerPatient(any(RegisterPersonRequest.class));
+        GetPatientResponse mockResponse = GetPatientResponse.builder()
+                .idPaciente(UUID.randomUUID())
+                .dni(request.getDni())
+                .nombres(request.getNombres())
+                .apellidos(request.getApellidos())
+                .telefono(request.getTelefono())
+                .build();
+        when(pacienteService.registerPatient(any(RegisterPersonRequest.class))).thenReturn(mockResponse);
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/paciente")
+        mockMvc.perform(post("/api/v1/pacientes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Registro exitoso"))
-                .andExpect(jsonPath("$.codigo").value("200"));
+                .andExpect(jsonPath("$.codigo").value("201"))
+                .andExpect(jsonPath("$.data.idPaciente").isString());
     }
 
     @Test
@@ -115,7 +134,7 @@ class PacienteControllerTest {
         RegisterPersonRequest request = buildValidRequest();
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/paciente")
+        mockMvc.perform(post("/api/v1/pacientes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
@@ -132,7 +151,7 @@ class PacienteControllerTest {
         request.setTelefono("123"); // Telefono invalido
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/paciente")
+        mockMvc.perform(post("/api/v1/pacientes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -149,7 +168,7 @@ class PacienteControllerTest {
         request.setTelefono("987654321");
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/paciente")
+        mockMvc.perform(post("/api/v1/pacientes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -166,7 +185,7 @@ class PacienteControllerTest {
         request.setTelefono("987654321");
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/paciente")
+        mockMvc.perform(post("/api/v1/pacientes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -177,10 +196,10 @@ class PacienteControllerTest {
     void registerPatient_whenServiceLanzaConflictException_debeRetornar409() throws Exception {
         // Arrange
         RegisterPersonRequest request = buildValidRequest();
-        doThrow(new ConflictException("El paciente ya existe")).when(pacienteService).registerPatient(any(RegisterPersonRequest.class));
+        when(pacienteService.registerPatient(any(RegisterPersonRequest.class))).thenThrow(new ConflictException("El paciente ya existe"));
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/paciente")
+        mockMvc.perform(post("/api/v1/pacientes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
@@ -205,7 +224,7 @@ class PacienteControllerTest {
         when(pacienteService.getByDni(dni)).thenReturn(mockResponse);
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/paciente/dni/{dni}", dni)
+        mockMvc.perform(get("/api/v1/pacientes/dni/{dni}", dni)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Consulta exitosa"))
@@ -224,7 +243,7 @@ class PacienteControllerTest {
         when(pacienteService.getByDni(anyString())).thenThrow(new NotFoundException("Paciente no encontrado"));
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/paciente/dni/{dni}", dni))
+        mockMvc.perform(get("/api/v1/pacientes/dni/{dni}", dni))
                 .andExpect(status().isNotFound());
     }
 
@@ -235,7 +254,7 @@ class PacienteControllerTest {
         String dni = "12345678";
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/paciente/dni/{dni}", dni))
+        mockMvc.perform(get("/api/v1/pacientes/dni/{dni}", dni))
                 .andExpect(status().isForbidden());
     }
 
@@ -246,7 +265,7 @@ class PacienteControllerTest {
         String dni = "1234567"; // DNI invalido
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/paciente/dni/{dni}", dni))
+        mockMvc.perform(get("/api/v1/pacientes/dni/{dni}", dni))
                 .andExpect(status().isBadRequest());
     }
 
@@ -257,7 +276,7 @@ class PacienteControllerTest {
         String dni = "1234567a"; // DNI invalido
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/paciente/dni/{dni}", dni))
+        mockMvc.perform(get("/api/v1/pacientes/dni/{dni}", dni))
                 .andExpect(status().isBadRequest());
     }
 
@@ -268,7 +287,7 @@ class PacienteControllerTest {
         String dni = " "; // DNI vacio
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/paciente/dni/{dni}", dni))
+        mockMvc.perform(get("/api/v1/pacientes/dni/{dni}", dni))
                 .andExpect(status().isBadRequest());
     }
 }

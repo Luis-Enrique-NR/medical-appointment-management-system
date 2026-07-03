@@ -16,8 +16,9 @@ public class PacienteMapper {
             .build();
   }
 
-  public static GetPatientResponse mapPatient(Persona persona) {
+  public static GetPatientResponse mapPatient(Persona persona, Paciente paciente) {
     return GetPatientResponse.builder()
+            .idPaciente(paciente.getIdPersona())
             .dni(persona.getDni())
             .telefono(persona.getTelefono())
             .nombres(persona.getNombres())

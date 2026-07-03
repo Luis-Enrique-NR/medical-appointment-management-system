@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.PropuestaDisponibilidadRequest;
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.UpdatePropuestaRequest;
@@ -51,8 +52,10 @@ public class DisponibilidadController {
   )
   @GetMapping("/pendientes")
   @PreAuthorize("hasRole('SECRETARIA ADMINISTRATIVA')")
-  public ResponseEntity<ApiResponse<List<PropuestaDisponibilidadResponse>>> listPendingProposals() {
-    List<PropuestaDisponibilidadResponse> propuestas = disponibilidadService.listPendingProposals();
+  public ResponseEntity<ApiResponse<List<PropuestaDisponibilidadResponse>>> listPendingProposals(
+          @RequestParam("idEspecialidad") Integer idEspecialidad
+  ) {
+    List<PropuestaDisponibilidadResponse> propuestas = disponibilidadService.listPendingProposals(idEspecialidad);
 
     return ResponseEntity.ok(new ApiResponse<>("Consulta exitosa", "200", propuestas));
   }

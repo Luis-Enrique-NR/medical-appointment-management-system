@@ -38,12 +38,6 @@ public class CitaController {
   // 1. ENDPOINTS DE LA SECRETARIA
   // ==========================================
 
-  @GetMapping("/test")
-  @PreAuthorize("hasRole('SECRETARIA ADMINISTRATIVA')")
-  public ResponseEntity<ApiResponse<String>> testRol () {
-    return ResponseEntity.ok(new ApiResponse<>("Exito", "200", "Listo"));
-  }
-
   @Operation(summary = "Obtener agenda general para secretaría", description = "Devuelve una vista paginada y filtrable de todas las citas del sistema.")
   @GetMapping("/secretaria")
   @PreAuthorize("hasRole('SECRETARIA ADMINISTRATIVA')")

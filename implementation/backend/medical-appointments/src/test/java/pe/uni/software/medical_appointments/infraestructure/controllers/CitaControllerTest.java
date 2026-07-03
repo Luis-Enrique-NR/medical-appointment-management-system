@@ -81,12 +81,12 @@ class CitaControllerTest {
         RegisterCitaRequest request = buildValidRequest();
         doNothing().when(citaService).registerAppointment(any(RegisterCitaRequest.class));
 
-        mockMvc.perform(post("/api/v1/cita")
+        mockMvc.perform(post("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Registro exitoso"))
-                .andExpect(jsonPath("$.codigo").value("200"));
+                .andExpect(jsonPath("$.codigo").value("201"));
     }
 
     // CC2: Role SECRETARIA ADMINISTRATIVA → 200
@@ -96,12 +96,12 @@ class CitaControllerTest {
         RegisterCitaRequest request = buildValidRequest();
         doNothing().when(citaService).registerAppointment(any(RegisterCitaRequest.class));
 
-        mockMvc.perform(post("/api/v1/cita")
+        mockMvc.perform(post("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Registro exitoso"))
-                .andExpect(jsonPath("$.codigo").value("200"));
+                .andExpect(jsonPath("$.codigo").value("201"));
     }
 
     // CC3: Role incorrecto → 403
@@ -110,7 +110,7 @@ class CitaControllerTest {
     void registrarCita_whenRoleMedico_debeRetornar403() throws Exception {
         RegisterCitaRequest request = buildValidRequest();
 
-        mockMvc.perform(post("/api/v1/cita")
+        mockMvc.perform(post("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
@@ -121,7 +121,7 @@ class CitaControllerTest {
     void registrarCita_whenSinAuth_debeRetornar403() throws Exception {
         RegisterCitaRequest request = buildValidRequest();
 
-        mockMvc.perform(post("/api/v1/cita")
+        mockMvc.perform(post("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
@@ -133,7 +133,7 @@ class CitaControllerTest {
     void registrarCita_whenIdAsignacionBloqueNull_debeRetornar400() throws Exception {
         RegisterCitaRequest request = new RegisterCitaRequest();
 
-        mockMvc.perform(post("/api/v1/cita")
+        mockMvc.perform(post("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -147,7 +147,7 @@ class CitaControllerTest {
         doThrow(new NotFoundException("No se encontró el bloque horario"))
                 .when(citaService).registerAppointment(any(RegisterCitaRequest.class));
 
-        mockMvc.perform(post("/api/v1/cita")
+        mockMvc.perform(post("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());
@@ -161,7 +161,7 @@ class CitaControllerTest {
         doThrow(new BadRequestException("El bloque horario ya no está disponible"))
                 .when(citaService).registerAppointment(any(RegisterCitaRequest.class));
 
-        mockMvc.perform(post("/api/v1/cita")
+        mockMvc.perform(post("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -175,7 +175,7 @@ class CitaControllerTest {
         doThrow(new IllegalStateException("No se pudo generar un código único"))
                 .when(citaService).registerAppointment(any(RegisterCitaRequest.class));
 
-        mockMvc.perform(post("/api/v1/cita")
+        mockMvc.perform(post("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isInternalServerError());
@@ -201,7 +201,7 @@ class CitaControllerTest {
         UpdateCitaRequest request = buildUpdateRequest();
         doNothing().when(citaService).updateAppointment(any(UpdateCitaRequest.class));
 
-        mockMvc.perform(put("/api/v1/cita")
+        mockMvc.perform(put("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -216,7 +216,7 @@ class CitaControllerTest {
         UpdateCitaRequest request = buildUpdateRequest();
         doNothing().when(citaService).updateAppointment(any(UpdateCitaRequest.class));
 
-        mockMvc.perform(put("/api/v1/cita")
+        mockMvc.perform(put("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -231,7 +231,7 @@ class CitaControllerTest {
         UpdateCitaRequest request = new UpdateCitaRequest();
         request.setIdCita(UUID.randomUUID());
 
-        mockMvc.perform(put("/api/v1/cita")
+        mockMvc.perform(put("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -243,7 +243,7 @@ class CitaControllerTest {
     void actualizarCita_whenRoleMedico_debeRetornar403() throws Exception {
         UpdateCitaRequest request = buildUpdateRequest();
 
-        mockMvc.perform(put("/api/v1/cita")
+        mockMvc.perform(put("/api/v1/citas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());

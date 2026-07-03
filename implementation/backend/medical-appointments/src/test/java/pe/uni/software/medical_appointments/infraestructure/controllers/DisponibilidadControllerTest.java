@@ -198,9 +198,9 @@ class DisponibilidadControllerTest {
         PropuestaDisponibilidadResponse propuesta = PropuestaDisponibilidadResponse.builder()
                 .medico("Juan Perez").bloquesHorario(List.of(bloque)).build();
 
-        when(disponibilidadService.listPendingProposals()).thenReturn(List.of(propuesta));
+        when(disponibilidadService.listPendingProposals(1)).thenReturn(List.of(propuesta));
 
-        mockMvc.perform(get("/api/v1/disponibilidad/pendientes"))
+        mockMvc.perform(get("/api/v1/disponibilidad/pendientes?idEspecialidad=1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Consulta exitosa"))
                 .andExpect(jsonPath("$.codigo").value("200"))
@@ -211,13 +211,13 @@ class DisponibilidadControllerTest {
     @Test
     @WithMockUser(roles = {"MEDICO ESPECIALISTA"})
     void listPendingProposals_whenRoleMedico_debeRetornar403() throws Exception {
-        mockMvc.perform(get("/api/v1/disponibilidad/pendientes"))
+        mockMvc.perform(get("/api/v1/disponibilidad/pendientes?idEspecialidad=1"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void listPendingProposals_whenSinAuth_debeRetornar403() throws Exception {
-        mockMvc.perform(get("/api/v1/disponibilidad/pendientes"))
+        mockMvc.perform(get("/api/v1/disponibilidad/pendientes?idEspecialidad=1"))
                 .andExpect(status().isForbidden());
     }
 
