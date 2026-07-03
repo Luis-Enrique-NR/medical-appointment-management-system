@@ -9,26 +9,37 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.PropuestaDisponibilidadRequest;
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.RangoDisponibilidadRequest;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.UpdatePropuestaRequest;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.response.BloqueDisponibilidadResponse;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.response.PropuestaDisponibilidadResponse;
 import pe.uni.software.medical_appointments.application.mappers.DisponibilidadMapper;
 import pe.uni.software.medical_appointments.domain.entities.AsignacionBloque;
 import pe.uni.software.medical_appointments.domain.entities.BloqueHorario;
 import pe.uni.software.medical_appointments.domain.entities.Consultorio;
 import pe.uni.software.medical_appointments.domain.entities.Medico;
 import pe.uni.software.medical_appointments.domain.entities.PropuestaDisponibilidad;
+import pe.uni.software.medical_appointments.domain.entities.Secretaria;
+import pe.uni.software.medical_appointments.domain.enums.EstadoPropuesta;
 import pe.uni.software.medical_appointments.exception.NotFoundException;
+import pe.uni.software.medical_appointments.infraestructure.repositories.AsignacionBloqueRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.BloqueHorarioRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.ConsultorioRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.MedicoRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.PropuestaDisponibilidadRepository;
+import pe.uni.software.medical_appointments.infraestructure.repositories.SecretariaRepository;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -39,6 +50,8 @@ public class DisponibilidadService {
   private final BloqueHorarioRepository bloqueHorarioRepository;
   private final MedicoRepository medicoRepository;
   private final PropuestaDisponibilidadRepository propuestaDisponibilidadRepository;
+  private final AsignacionBloqueRepository asignacionBloqueRepository;
+  private final SecretariaRepository secretariaRepository;
   private final ConsultorioRepository consultorioRepository;
 
   @Transactional
@@ -127,16 +140,6 @@ public class DisponibilidadService {
     PropuestaDisponibilidad propuesta = DisponibilidadMapper.buildPropuesta(request, medico);
     List<AsignacionBloque> asignaciones = new ArrayList<>();
 
-    // 6.1. Conseguir un consultorio habilitado para la especialidad del médico
-    Consultorio consultorioAsignado = consultorioRepository
-            .findHabilitadosPorEspecialidad(medico.getEspecialidad())
-            .stream()
-            .findFirst() // Tomamos el primero que responda la BD
-            .orElseThrow(() -> new IllegalStateException(String.format(
-                    "No hay consultorios habilitados actualmente para la especialidad: %s",
-                    medico.getEspecialidad().getNombres()
-            )));
-
     // 7. Dividir los rangos del request en los bloques de 30 min correspondientes
     for (RangoDisponibilidadRequest rango : rangos) {
       // Filtramos de nuestro Set optimizado solo los bloques de 30 min que caen dentro de este rango específico
@@ -146,7 +149,7 @@ public class DisponibilidadService {
 
       for (BloqueHorario bh : bloquesDelRango) {
         // Construimos la asignación pasando null en consultorio temporalmente
-        AsignacionBloque asignacion = DisponibilidadMapper.buildAsignacionBloque(bh, propuesta, consultorioAsignado, rango.getDia());
+        AsignacionBloque asignacion = DisponibilidadMapper.buildAsignacionBloque(bh, propuesta, rango.getDia());
         asignaciones.add(asignacion);
       }
     }
@@ -156,6 +159,128 @@ public class DisponibilidadService {
 
     // 8. Guardamos en la base de datos (debido al CascadeType.ALL se guardarán las asignaciones automáticamente)
     propuestaDisponibilidadRepository.save(propuesta);
+  }
+
+  public List<PropuestaDisponibilidadResponse> listPendingProposals() {
+
+    // 1. Obtener la lista de Propuestas con todas sus relaciones cargadas
+    List<PropuestaDisponibilidad> propuestas = propuestaDisponibilidadRepository.findByEstadoWithDetails(EstadoPropuesta.PENDIENTE.name());
+
+    // 2. Organizar y mapear en DTOs
+    return propuestas.stream().map(propuesta -> {
+
+      // Mapear los bloques internos
+      List<BloqueDisponibilidadResponse> bloquesDTO = propuesta.getAsignaciones().stream()
+              .map(DisponibilidadMapper::mapBloqueResponse)
+              .toList();
+
+      // Mapear la propuesta principal
+      return DisponibilidadMapper.mapPropuesta(propuesta, bloquesDTO);
+
+    }).toList();
+  }
+
+  @Transactional
+  public void updateProposals(List<UpdatePropuestaRequest> requests) {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    String correo = auth.getName();
+
+    // 1. Obtener la secretaria (Corregido el mensaje de error)
+    Secretaria secretaria = secretariaRepository.getByCorreo(correo)
+            .orElseThrow(() -> new RuntimeException("No se ha encontrado un perfil de secretaria con el usuario activo"));
+
+    if (requests == null || requests.isEmpty()) {
+      return;
+    }
+
+    // Convertir el request a un Map para búsqueda rápida (IdAsignacion -> Aprobado)
+    Map<Integer, Boolean> requestMap = requests.stream()
+            .collect(Collectors.toMap(UpdatePropuestaRequest::getIdAsignacion, UpdatePropuestaRequest::getAprobado));
+
+    // 2. Extraer los datos masivamente (FASE 1)
+    List<Integer> asignacionIds = new ArrayList<>(requestMap.keySet());
+    List<AsignacionBloque> asignaciones = asignacionBloqueRepository.findByIdsWithDetails(asignacionIds);
+
+    List<Consultorio> consultorios = consultorioRepository.findAllHabilitadosWithEspecialidad();
+
+    // Agrupar consultorios por ID de Especialidad
+    Map<Integer, List<Consultorio>> consultoriosPorEspecialidad = consultorios.stream()
+            .collect(Collectors.groupingBy(c -> c.getEspecialidad().getId()));
+
+    // 3. Estructura para llevar el control de capacidad (FASE 2)
+    // Llave: "Fecha_IdBloque_IdEspecialidad" -> Valor: Cola de Consultorios disponibles
+    Map<String, Queue<Consultorio>> controlDisponibilidad = new HashMap<>();
+
+    // Set para guardar las propuestas únicas que estamos modificando
+    Set<PropuestaDisponibilidad> propuestasModificadas = new HashSet<>();
+
+    // 4. Asignación de Consultorios (FASE 3)
+    for (AsignacionBloque asignacion : asignaciones) {
+      Boolean aprobado = requestMap.get(asignacion.getId());
+      asignacion.setDisponible(aprobado);
+
+      if (aprobado) {
+        // Generar llave única de tiempo y especialidad
+        String key = asignacion.getFecha().toString() + "_"
+                + asignacion.getBloqueHorario().getId() + "_"
+                + asignacion.getPropuestaDisponibilidad().getMedico().getEspecialidad().getId();
+
+        // Si es la primera vez que evaluamos esta llave, cargar los consultorios disponibles
+        controlDisponibilidad.computeIfAbsent(key, k -> {
+          Integer idEspecialidad = asignacion.getPropuestaDisponibilidad().getMedico().getEspecialidad().getId();
+          List<Consultorio> consultoriosEspecialidad = consultoriosPorEspecialidad.getOrDefault(idEspecialidad, new ArrayList<>());
+          return new LinkedList<>(consultoriosEspecialidad); // LinkedList funciona como Cola
+        });
+
+        // Extraer un consultorio de la cola
+        Queue<Consultorio> consultoriosDisponibles = controlDisponibilidad.get(key);
+        Consultorio consultorioAsignado = consultoriosDisponibles.poll();
+
+        // Si la cola está vacía, no hay consultorios suficientes
+        if (consultorioAsignado == null) {
+          throw new RuntimeException("Capacidad excedida: No hay consultorios suficientes para la especialidad "
+                  + asignacion.getPropuestaDisponibilidad().getMedico().getEspecialidad().getNombres()
+                  + " el " + asignacion.getFecha()
+                  + " a las " + asignacion.getBloqueHorario().getHoraInicio());
+        }
+
+        asignacion.setConsultorio(consultorioAsignado);
+      } else {
+        // Si es rechazado, nos aseguramos de que no tenga consultorio
+        asignacion.setConsultorio(null);
+      }
+
+      // Agregar la propuesta al Set para actualizar su cabecera después
+      propuestasModificadas.add(asignacion.getPropuestaDisponibilidad());
+    }
+
+    // 5. Resolución de la Propuesta Padre (FASE 4)
+    for (PropuestaDisponibilidad propuesta : propuestasModificadas) {
+
+      long aprobadas = propuesta.getAsignaciones().stream()
+              .filter(a -> Boolean.TRUE.equals(a.getDisponible()))
+              .count();
+
+      long rechazadas = propuesta.getAsignaciones().stream()
+              .filter(a -> Boolean.FALSE.equals(a.getDisponible()))
+              .count();
+
+      long totales = propuesta.getAsignaciones().size();
+
+      // Determinar el estado general
+      if (aprobadas == totales) {
+        propuesta.setEstado(EstadoPropuesta.APROBADO.name());
+      } else if (rechazadas == totales) {
+        propuesta.setEstado(EstadoPropuesta.RECHAZADO.name());
+      } else {
+        propuesta.setEstado(EstadoPropuesta.OBSERVADO.name());
+      }
+
+      // Metadatos de auditoría
+      propuesta.setSecretaria(secretaria);
+      propuesta.setFechaResolucion(LocalDateTime.now());
+    }
+
   }
 
   // Herramientas

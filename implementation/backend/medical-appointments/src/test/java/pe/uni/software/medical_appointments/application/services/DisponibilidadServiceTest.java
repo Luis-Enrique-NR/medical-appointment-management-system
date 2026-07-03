@@ -13,17 +13,25 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.PropuestaDisponibilidadRequest;
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.RangoDisponibilidadRequest;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.UpdatePropuestaRequest;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.response.BloqueDisponibilidadResponse;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.response.PropuestaDisponibilidadResponse;
 import pe.uni.software.medical_appointments.domain.entities.AsignacionBloque;
 import pe.uni.software.medical_appointments.domain.entities.BloqueHorario;
 import pe.uni.software.medical_appointments.domain.entities.Consultorio;
 import pe.uni.software.medical_appointments.domain.entities.Especialidad;
 import pe.uni.software.medical_appointments.domain.entities.Medico;
+import pe.uni.software.medical_appointments.domain.entities.Persona;
 import pe.uni.software.medical_appointments.domain.entities.PropuestaDisponibilidad;
+import pe.uni.software.medical_appointments.domain.entities.Secretaria;
+import pe.uni.software.medical_appointments.domain.enums.EstadoPropuesta;
 import pe.uni.software.medical_appointments.exception.NotFoundException;
+import pe.uni.software.medical_appointments.infraestructure.repositories.AsignacionBloqueRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.BloqueHorarioRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.ConsultorioRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.MedicoRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.PropuestaDisponibilidadRepository;
+import pe.uni.software.medical_appointments.infraestructure.repositories.SecretariaRepository;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -53,6 +61,12 @@ class DisponibilidadServiceTest {
     private ConsultorioRepository consultorioRepository;
 
     @Mock
+    private AsignacionBloqueRepository asignacionBloqueRepository;
+
+    @Mock
+    private SecretariaRepository secretariaRepository;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock
@@ -73,8 +87,8 @@ class DisponibilidadServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn("medico@test.com");
+        lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
+        lenient().when(authentication.getName()).thenReturn("medico@test.com");
         SecurityContextHolder.setContext(securityContext);
 
         especialidadMock = Especialidad.builder()
@@ -122,8 +136,15 @@ class DisponibilidadServiceTest {
         return request;
     }
 
+    private static UpdatePropuestaRequest buildUpdateRequest(Integer id, boolean aprobado) {
+        UpdatePropuestaRequest r = new UpdatePropuestaRequest();
+        r.setIdAsignacion(id);
+        r.setAprobado(aprobado);
+        return r;
+    }
+
     // ========================================================================
-    // PRUEBAS DE CAJA BLANCA — 10 rutas independientes (V(G) = 10)
+    // PRUEBAS DE CAJA BLANCA — 9 rutas independientes (V(G) = 9)
     // ========================================================================
 
     // P1: Medico no encontrado por correo
@@ -202,8 +223,6 @@ class DisponibilidadServiceTest {
     @Test
     void cajaBlanca_P6_rangosVacios_shouldSucceedSinGetByRange() {
         when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(Collections.emptyList());
 
@@ -217,8 +236,6 @@ class DisponibilidadServiceTest {
     void cajaBlanca_P7T_P8T_fusionConExtension_shouldCallGetByRangeUnaVez() {
         when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
         when(bloqueHorarioRepository.getByRange(any(), any())).thenReturn(bloquesCompletos08_12);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(List.of(
                 buildRango(DAY, "08:00", "10:00"),
@@ -235,8 +252,6 @@ class DisponibilidadServiceTest {
     void cajaBlanca_P7T_P8F_fusionConsecutivos_shouldCallGetByRangeUnaVez() {
         when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
         when(bloqueHorarioRepository.getByRange(any(), any())).thenReturn(bloquesCompletos08_12);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(List.of(
                 buildRango(DAY, "08:00", "09:00"),
@@ -255,8 +270,6 @@ class DisponibilidadServiceTest {
         when(bloqueHorarioRepository.getByRange(any(), any()))
                 .thenReturn(bloques08_09)
                 .thenReturn(bloques10_11);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(List.of(
                 buildRango(DAY, "08:00", "09:00"),
@@ -266,23 +279,6 @@ class DisponibilidadServiceTest {
         assertDoesNotThrow(() -> disponibilidadService.registerAvailabilityIntention(request));
         verify(bloqueHorarioRepository, times(2)).getByRange(any(), any());
         verify(propuestaDisponibilidadRepository).save(any());
-    }
-
-    // P9: Sin consultorios habilitados para la especialidad
-    @Test
-    void cajaBlanca_P9_sinConsultoriosHabilitados_shouldThrowIllegalStateException() {
-        when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
-        when(bloqueHorarioRepository.getByRange(any(), any())).thenReturn(bloquesCompletos08_12);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(Collections.emptyList());
-
-        PropuestaDisponibilidadRequest request = buildRequest(List.of(
-                buildRango(DAY, "08:00", "12:00")
-        ));
-
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> disponibilidadService.registerAvailabilityIntention(request));
-        assertTrue(ex.getMessage().contains("No hay consultorios habilitados"));
     }
 
     // ========================================================================
@@ -330,8 +326,6 @@ class DisponibilidadServiceTest {
     void cajaNegra_unSoloRangoValido_shouldSucceed() {
         when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
         when(bloqueHorarioRepository.getByRange(any(), any())).thenReturn(bloquesCompletos08_12);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(List.of(
                 buildRango(DAY, "08:00", "12:00")
@@ -349,8 +343,6 @@ class DisponibilidadServiceTest {
     void flujoNegocio_principal_dosDiasSinSolape_shouldSucceed() {
         when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
         when(bloqueHorarioRepository.getByRange(any(), any())).thenReturn(bloquesCompletos08_12);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(List.of(
                 buildRango(DAY, "08:00", "12:00"),
@@ -365,8 +357,6 @@ class DisponibilidadServiceTest {
     void flujoNegocio_alterno_fusionDiferentesFechas_shouldOptimizarGetByRange() {
         when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
         when(bloqueHorarioRepository.getByRange(any(), any())).thenReturn(bloquesCompletos08_12);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(List.of(
                 buildRango(DAY, "08:00", "10:00"),
@@ -400,8 +390,6 @@ class DisponibilidadServiceTest {
     void regresion_propuestaGuardadaConAsignacionesCorrectas() {
         when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
         when(bloqueHorarioRepository.getByRange(any(), any())).thenReturn(bloquesCompletos08_12);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(List.of(
                 buildRango(DAY, "08:00", "10:00")
@@ -422,7 +410,7 @@ class DisponibilidadServiceTest {
 
         // Verificar que todas las asignaciones tengan los datos correctos
         for (AsignacionBloque ab : saved.getAsignaciones()) {
-            assertEquals(consultorioMock, ab.getConsultorio());
+            assertNull(ab.getConsultorio());
             assertEquals(DAY, ab.getFecha());
             assertFalse(ab.getDisponible());
             assertNotNull(ab.getBloqueHorario());
@@ -434,8 +422,6 @@ class DisponibilidadServiceTest {
     void regresion_noDebeHaberEfectoSecundarioEntreLlamados() {
         when(medicoRepository.getByCorreo(anyString())).thenReturn(Optional.of(medicoMock));
         when(bloqueHorarioRepository.getByRange(any(), any())).thenReturn(bloquesCompletos08_12);
-        when(consultorioRepository.findHabilitadosPorEspecialidad(especialidadMock))
-                .thenReturn(List.of(consultorioMock));
 
         PropuestaDisponibilidadRequest request = buildRequest(List.of(
                 buildRango(DAY, "08:00", "12:00")
@@ -457,5 +443,268 @@ class DisponibilidadServiceTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> disponibilidadService.registerAvailabilityIntention(request));
+    }
+
+    // ========================================================================
+    // PRUEBAS PARA validarHorario() — Caja blanca directa (V(G) = 3)
+    // ========================================================================
+
+    // VH1: horaInicio < horaFin, ambos :00 → no exception
+    @Test
+    void validarHorario_VH1_horaValidaPunto_shouldSucceed() {
+        RangoDisponibilidadRequest rango = buildRango(DAY, "08:00", "10:00");
+        assertDoesNotThrow(() -> disponibilidadService.validarHorario(rango));
+    }
+
+    // VH2: horaInicio < horaFin, ambos :30 → no exception
+    @Test
+    void validarHorario_VH2_horaValidaMedia_shouldSucceed() {
+        RangoDisponibilidadRequest rango = buildRango(DAY, "08:30", "10:30");
+        assertDoesNotThrow(() -> disponibilidadService.validarHorario(rango));
+    }
+
+    // VH3: horaInicio > horaFin → IllegalArgumentException
+    @Test
+    void validarHorario_VH3_inicioMayorQueFin_shouldThrow() {
+        RangoDisponibilidadRequest rango = buildRango(DAY, "12:00", "08:00");
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> disponibilidadService.validarHorario(rango));
+        assertTrue(ex.getMessage().contains("inicio"));
+    }
+
+    // VH4: horaInicio == horaFin → IllegalArgumentException
+    @Test
+    void validarHorario_VH4_inicioIgualFin_shouldThrow() {
+        RangoDisponibilidadRequest rango = buildRango(DAY, "08:00", "08:00");
+        assertThrows(IllegalArgumentException.class,
+                () -> disponibilidadService.validarHorario(rango));
+    }
+
+    // VH5: horaInicio con minutos no válidos (:15) → IllegalArgumentException
+    @Test
+    void validarHorario_VH5_minutosInicioInvalidos_shouldThrow() {
+        RangoDisponibilidadRequest rango = buildRango(DAY, "08:15", "10:00");
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> disponibilidadService.validarHorario(rango));
+        assertTrue(ex.getMessage().contains(":00") || ex.getMessage().contains(":30"));
+    }
+
+    // VH6: horaFin con minutos no válidos (:45) → IllegalArgumentException
+    @Test
+    void validarHorario_VH6_minutosFinInvalidos_shouldThrow() {
+        RangoDisponibilidadRequest rango = buildRango(DAY, "08:00", "10:45");
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> disponibilidadService.validarHorario(rango));
+        assertTrue(ex.getMessage().contains(":00") || ex.getMessage().contains(":30"));
+    }
+
+    // ========================================================================
+    // PRUEBAS PARA listPendingProposals() — Caja blanca (V(G) = 1)
+    // ========================================================================
+
+    @Test
+    void listPendingProposals_LP1_sinPropuestas_shouldReturnEmptyList() {
+        when(propuestaDisponibilidadRepository.findByEstadoWithDetails(EstadoPropuesta.PENDIENTE.name()))
+                .thenReturn(List.of());
+
+        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals();
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void listPendingProposals_LP2_unaPropuestaDosBloques_shouldMapCorrectamente() {
+        Persona personaMock = Persona.builder()
+                .nombres("Juan").apellidos("Perez").build();
+        medicoMock.setPersona(personaMock);
+
+        BloqueHorario bh1 = BloqueHorario.builder()
+                .id(1).horaInicio(LocalTime.of(8, 0)).horaFin(LocalTime.of(8, 30)).build();
+        BloqueHorario bh2 = BloqueHorario.builder()
+                .id(2).horaInicio(LocalTime.of(8, 30)).horaFin(LocalTime.of(9, 0)).build();
+
+        AsignacionBloque ab1 = AsignacionBloque.builder()
+                .id(100).fecha(DAY).bloqueHorario(bh1).disponible(false).build();
+        AsignacionBloque ab2 = AsignacionBloque.builder()
+                .id(101).fecha(DAY).bloqueHorario(bh2).disponible(false).build();
+
+        PropuestaDisponibilidad propuesta = PropuestaDisponibilidad.builder()
+                .id(1).medico(medicoMock).estado(EstadoPropuesta.PENDIENTE.name())
+                .asignaciones(List.of(ab1, ab2))
+                .build();
+
+        when(propuestaDisponibilidadRepository.findByEstadoWithDetails(EstadoPropuesta.PENDIENTE.name()))
+                .thenReturn(List.of(propuesta));
+
+        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals();
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        PropuestaDisponibilidadResponse dto = result.get(0);
+        assertEquals("Juan Perez", dto.getMedico());
+        assertNotNull(dto.getBloquesHorario());
+        assertEquals(2, dto.getBloquesHorario().size());
+        assertEquals(Integer.valueOf(100), dto.getBloquesHorario().get(0).getIdBloque());
+        assertEquals(DAY, dto.getBloquesHorario().get(0).getFecha());
+        assertEquals(LocalTime.of(8, 0), dto.getBloquesHorario().get(0).getHoraInicio());
+        assertEquals(LocalTime.of(8, 30), dto.getBloquesHorario().get(0).getHoraFin());
+        assertEquals(Integer.valueOf(101), dto.getBloquesHorario().get(1).getIdBloque());
+        assertEquals(LocalTime.of(8, 30), dto.getBloquesHorario().get(1).getHoraInicio());
+    }
+
+    @Test
+    void listPendingProposals_LP3_multiplesPropuestas_shouldMapTodas() {
+        Persona persona1 = Persona.builder().nombres("Ana").apellidos("Lopez").build();
+        Persona persona2 = Persona.builder().nombres("Luis").apellidos("Garcia").build();
+
+        Medico medico1 = Medico.builder().idPersona(UUID.randomUUID()).persona(persona1).build();
+        Medico medico2 = Medico.builder().idPersona(UUID.randomUUID()).persona(persona2).build();
+
+        BloqueHorario bh = BloqueHorario.builder()
+                .id(1).horaInicio(LocalTime.of(8, 0)).horaFin(LocalTime.of(8, 30)).build();
+        AsignacionBloque ab = AsignacionBloque.builder()
+                .id(200).fecha(DAY).bloqueHorario(bh).disponible(false).build();
+
+        PropuestaDisponibilidad p1 = PropuestaDisponibilidad.builder()
+                .id(1).medico(medico1).estado(EstadoPropuesta.PENDIENTE.name())
+                .asignaciones(List.of(ab)).build();
+        PropuestaDisponibilidad p2 = PropuestaDisponibilidad.builder()
+                .id(2).medico(medico2).estado(EstadoPropuesta.PENDIENTE.name())
+                .asignaciones(List.of(ab)).build();
+
+        when(propuestaDisponibilidadRepository.findByEstadoWithDetails(EstadoPropuesta.PENDIENTE.name()))
+                .thenReturn(List.of(p1, p2));
+
+        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals();
+
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("Ana Lopez", result.get(0).getMedico());
+        assertEquals("Luis Garcia", result.get(1).getMedico());
+    }
+
+    // ========================================================================
+    // PRUEBAS PARA updateProposals() — Caja blanca (V(G) = 6)
+    // ========================================================================
+
+    private AsignacionBloque buildAsignacion(int id, Integer bloqueId, LocalTime hInicio, LocalTime hFin,
+                                              PropuestaDisponibilidad propuesta, LocalDate fecha) {
+        BloqueHorario bh = BloqueHorario.builder()
+                .id(bloqueId).horaInicio(hInicio).horaFin(hFin).build();
+        return AsignacionBloque.builder()
+                .id(id).fecha(fecha).bloqueHorario(bh).disponible(false)
+                .propuestaDisponibilidad(propuesta).consultorio(null).build();
+    }
+
+    @Test
+    void updateProposals_UP1_secretariaNoEncontrada_shouldThrowRuntimeException() {
+        when(secretariaRepository.getByCorreo(anyString())).thenReturn(Optional.empty());
+
+        List<UpdatePropuestaRequest> requests = List.of(buildUpdateRequest(1, true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> disponibilidadService.updateProposals(requests));
+        assertTrue(ex.getMessage().contains("secretaria"));
+    }
+
+    @Test
+    void updateProposals_UP2_requestsVacio_shouldReturnSinLlamarRepos() {
+        when(secretariaRepository.getByCorreo(anyString())).thenReturn(Optional.of(mock(Secretaria.class)));
+
+        disponibilidadService.updateProposals(List.of());
+
+        verify(asignacionBloqueRepository, never()).findByIdsWithDetails(any());
+    }
+
+    @Test
+    void updateProposals_UP3_unaAprobada_shouldSetConsultorioYEstadoAprobado() {
+        Persona personaMock = Persona.builder().nombres("Ana").apellidos("Lopez").build();
+        Secretaria secretariaMock = Secretaria.builder().idPersona(UUID.randomUUID()).persona(personaMock).build();
+        when(secretariaRepository.getByCorreo(anyString())).thenReturn(Optional.of(secretariaMock));
+
+        PropuestaDisponibilidad propuesta = PropuestaDisponibilidad.builder()
+                .id(1).medico(medicoMock).estado(EstadoPropuesta.PENDIENTE.name()).build();
+        AsignacionBloque ab = buildAsignacion(10, 1, LocalTime.of(8, 0), LocalTime.of(8, 30), propuesta, DAY);
+        propuesta.setAsignaciones(List.of(ab));
+
+        when(asignacionBloqueRepository.findByIdsWithDetails(any())).thenReturn(List.of(ab));
+        when(consultorioRepository.findAllHabilitadosWithEspecialidad()).thenReturn(List.of(consultorioMock));
+
+        disponibilidadService.updateProposals(List.of(buildUpdateRequest(10, true)));
+
+        assertEquals(consultorioMock, ab.getConsultorio());
+        assertTrue(ab.getDisponible());
+        assertEquals(EstadoPropuesta.APROBADO.name(), propuesta.getEstado());
+        assertNotNull(propuesta.getFechaResolucion());
+        assertEquals(secretariaMock, propuesta.getSecretaria());
+    }
+
+    @Test
+    void updateProposals_UP4_unaRechazada_shouldSetConsultorioNullYEstadoRechazado() {
+        when(secretariaRepository.getByCorreo(anyString())).thenReturn(Optional.of(mock(Secretaria.class)));
+
+        PropuestaDisponibilidad propuesta = PropuestaDisponibilidad.builder()
+                .id(2).medico(medicoMock).estado(EstadoPropuesta.PENDIENTE.name()).build();
+        AsignacionBloque ab = buildAsignacion(20, 1, LocalTime.of(8, 0), LocalTime.of(8, 30), propuesta, DAY);
+        propuesta.setAsignaciones(List.of(ab));
+
+        when(asignacionBloqueRepository.findByIdsWithDetails(any())).thenReturn(List.of(ab));
+
+        disponibilidadService.updateProposals(List.of(buildUpdateRequest(20, false)));
+
+        assertNull(ab.getConsultorio());
+        assertFalse(ab.getDisponible());
+        assertEquals(EstadoPropuesta.RECHAZADO.name(), propuesta.getEstado());
+    }
+
+    @Test
+    void updateProposals_UP5_mixtas_shouldSetEstadoObservado() {
+        when(secretariaRepository.getByCorreo(anyString())).thenReturn(Optional.of(mock(Secretaria.class)));
+
+        PropuestaDisponibilidad propuesta = PropuestaDisponibilidad.builder()
+                .id(3).medico(medicoMock).estado(EstadoPropuesta.PENDIENTE.name()).build();
+        AsignacionBloque ab1 = buildAsignacion(31, 1, LocalTime.of(8, 0), LocalTime.of(8, 30), propuesta, DAY);
+        AsignacionBloque ab2 = buildAsignacion(32, 2, LocalTime.of(8, 30), LocalTime.of(9, 0), propuesta, DAY);
+        propuesta.setAsignaciones(List.of(ab1, ab2));
+
+        when(asignacionBloqueRepository.findByIdsWithDetails(any())).thenReturn(List.of(ab1, ab2));
+        when(consultorioRepository.findAllHabilitadosWithEspecialidad()).thenReturn(List.of(consultorioMock));
+
+        disponibilidadService.updateProposals(List.of(
+                buildUpdateRequest(31, true),
+                buildUpdateRequest(32, false)
+        ));
+
+        assertEquals(consultorioMock, ab1.getConsultorio());
+        assertTrue(ab1.getDisponible());
+        assertNull(ab2.getConsultorio());
+        assertFalse(ab2.getDisponible());
+        assertEquals(EstadoPropuesta.OBSERVADO.name(), propuesta.getEstado());
+    }
+
+    @Test
+    void updateProposals_UP6_capacidadExcedida_shouldThrowRuntimeException() {
+        when(secretariaRepository.getByCorreo(anyString())).thenReturn(Optional.of(mock(Secretaria.class)));
+
+        // Misma fecha, mismo bloqueHorario, misma especialidad → misma key
+        PropuestaDisponibilidad propuesta = PropuestaDisponibilidad.builder()
+                .id(4).medico(medicoMock).estado(EstadoPropuesta.PENDIENTE.name()).build();
+        AsignacionBloque ab1 = buildAsignacion(41, 1, LocalTime.of(8, 0), LocalTime.of(8, 30), propuesta, DAY);
+        AsignacionBloque ab2 = buildAsignacion(42, 1, LocalTime.of(8, 0), LocalTime.of(8, 30), propuesta, DAY);
+        propuesta.setAsignaciones(List.of(ab1, ab2));
+
+        when(asignacionBloqueRepository.findByIdsWithDetails(any())).thenReturn(List.of(ab1, ab2));
+        // Solo 1 consultorio para 2 asignaciones en la misma key
+        when(consultorioRepository.findAllHabilitadosWithEspecialidad()).thenReturn(List.of(consultorioMock));
+
+        List<UpdatePropuestaRequest> requests = List.of(
+                buildUpdateRequest(41, true),
+                buildUpdateRequest(42, true)
+        );
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> disponibilidadService.updateProposals(requests));
+        assertTrue(ex.getMessage().contains("Capacidad excedida"));
     }
 }

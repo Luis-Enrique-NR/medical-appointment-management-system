@@ -17,6 +17,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.PropuestaDisponibilidadRequest;
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.RangoDisponibilidadRequest;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.request.UpdatePropuestaRequest;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.response.BloqueDisponibilidadResponse;
+import pe.uni.software.medical_appointments.application.dtos.disponibilidad.response.PropuestaDisponibilidadResponse;
 import pe.uni.software.medical_appointments.application.services.DisponibilidadService;
 import pe.uni.software.medical_appointments.exception.NotFoundException;
 import pe.uni.software.medical_appointments.service.JwtService;
@@ -28,7 +31,10 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -177,5 +183,78 @@ class DisponibilidadControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isInternalServerError());
+    }
+
+    // ========================================================================
+    // GET /pendientes
+    // ========================================================================
+
+    @Test
+    @WithMockUser(roles = {"SECRETARIA ADMINISTRATIVA"})
+    void listPendingProposals_whenRoleSecretaria_debeRetornar200() throws Exception {
+        BloqueDisponibilidadResponse bloque = BloqueDisponibilidadResponse.builder()
+                .idBloque(1).fecha(LocalDate.of(2026, 7, 15))
+                .horaInicio(LocalTime.of(8, 0)).horaFin(LocalTime.of(8, 30)).build();
+        PropuestaDisponibilidadResponse propuesta = PropuestaDisponibilidadResponse.builder()
+                .medico("Juan Perez").bloquesHorario(List.of(bloque)).build();
+
+        when(disponibilidadService.listPendingProposals()).thenReturn(List.of(propuesta));
+
+        mockMvc.perform(get("/api/v1/disponibilidad/pendientes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Consulta exitosa"))
+                .andExpect(jsonPath("$.codigo").value("200"))
+                .andExpect(jsonPath("$.data[0].medico").value("Juan Perez"))
+                .andExpect(jsonPath("$.data[0].bloquesHorario[0].idBloque").value(1));
+    }
+
+    @Test
+    @WithMockUser(roles = {"MEDICO ESPECIALISTA"})
+    void listPendingProposals_whenRoleMedico_debeRetornar403() throws Exception {
+        mockMvc.perform(get("/api/v1/disponibilidad/pendientes"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listPendingProposals_whenSinAuth_debeRetornar403() throws Exception {
+        mockMvc.perform(get("/api/v1/disponibilidad/pendientes"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ========================================================================
+    // PUT /actualizar
+    // ========================================================================
+
+    @Test
+    @WithMockUser(roles = {"SECRETARIA ADMINISTRATIVA"})
+    void updateProposals_whenRoleSecretariaYBodyValido_debeRetornar200() throws Exception {
+        UpdatePropuestaRequest req = new UpdatePropuestaRequest();
+        req.setIdAsignacion(1);
+        req.setAprobado(true);
+        doNothing().when(disponibilidadService).updateProposals(any());
+
+        mockMvc.perform(put("/api/v1/disponibilidad/actualizar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(List.of(req))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Actualización exitosa"))
+                .andExpect(jsonPath("$.codigo").value("200"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"MEDICO ESPECIALISTA"})
+    void updateProposals_whenRoleMedico_debeRetornar403() throws Exception {
+        mockMvc.perform(put("/api/v1/disponibilidad/actualizar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(List.of())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateProposals_whenSinAuth_debeRetornar403() throws Exception {
+        mockMvc.perform(put("/api/v1/disponibilidad/actualizar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(List.of())))
+                .andExpect(status().isForbidden());
     }
 }
