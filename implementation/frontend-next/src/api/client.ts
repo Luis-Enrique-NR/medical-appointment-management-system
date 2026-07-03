@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+const BASE_URL = "https://medical-appointment-management-system.orender.com/api/v1";
 
 export class ApiError extends Error {
   constructor(public response: { message: string; codigo: string; data?: unknown }) {
