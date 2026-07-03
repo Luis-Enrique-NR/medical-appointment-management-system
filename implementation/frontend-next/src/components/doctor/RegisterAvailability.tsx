@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback } from "react";
-import { CheckCircle2, Info, Loader2 } from "lucide-react";
+import { CheckCircle2, Info, Loader2, AlertTriangle } from "lucide-react";
 import { toDateStr } from "@/lib/utils";
 import { disponibilidadService } from "@/services/disponibilidad";
 
@@ -197,6 +197,12 @@ export function RegisterAvailability() {
                     );
                   })}
                 </div>
+                {hasErrors && (
+                  <div className="mb-3 flex items-start gap-2 bg-[#FF82B6]/15 border border-[#FF82B6]/30 rounded-lg px-3 py-2 text-xs text-[#d45c8b]">
+                    <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+                    <span>Corrija los bloques marcados en rojo (mínimo 1 hora por bloque)</span>
+                  </div>
+                )}
                 <button disabled={!canSubmit} onClick={() => setShowConfirm(true)}
                   className="w-full py-3 bg-[#006FC1] text-white rounded-lg font-semibold hover:bg-[#005a9e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">Enviar Propuesta</button>
               </>
