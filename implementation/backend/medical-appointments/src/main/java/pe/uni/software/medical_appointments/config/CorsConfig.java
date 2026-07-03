@@ -14,9 +14,9 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/v1/**")
-                        .allowedOrigins(
-                                "https://medical-appointment-management-system-cuevhbv6y.vercel.app",
-                                "https://medical-appointment-management-syst.vercel.app",
+                        // Cambiado a allowedOriginPatterns para soportar comodines con credentials(true)
+                        .allowedOriginPatterns(
+                                "https://medical-appointment-*.vercel.app",
                                 "http://localhost:5173"
                         )
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
