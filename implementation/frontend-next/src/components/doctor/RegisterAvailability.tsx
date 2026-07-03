@@ -13,9 +13,27 @@ for (let h = 8; h <= 19; h++) {
 
 const DAY_NAMES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
+function computeErrors(selections: Record<string, string[]>): Record<string, Record<string, string>> {
+  const errors: Record<string, Record<string, string>> = {};
+  for (const [day, times] of Object.entries(selections)) {
+    const dayErrors: Record<string, string> = {};
+    const sorted = [...times].sort();
+    for (let j = 0; j < sorted.length; j++) {
+      const t = sorted[j];
+      const tIdx = HOURS.indexOf(t);
+      const hasPrev = j > 0 && HOURS.indexOf(sorted[j - 1]) === tIdx - 1;
+      const hasNext = j < sorted.length - 1 && HOURS.indexOf(sorted[j + 1]) === tIdx + 1;
+      if (!hasPrev && !hasNext) {
+        dayErrors[t] = "Error: Bloque menor a 1 hora";
+      }
+    }
+    if (Object.keys(dayErrors).length > 0) errors[day] = dayErrors;
+  }
+  return errors;
+}
+
 export function RegisterAvailability() {
   const [selections, setSelections] = useState<Record<string, string[]>>({});
-  const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({});
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -39,23 +57,7 @@ export function RegisterAvailability() {
       if (i >= 0) current.splice(i, 1);
       else current.push(timeStr);
       current.sort();
-      const newPrev = { ...prev, [day]: current };
-
-      // Validate: 30-min blocks must be in groups of 2+
-      const errors: Record<string, string> = {};
-      const sorted = [...current].sort();
-      for (let j = 0; j < sorted.length; j++) {
-        const t = sorted[j];
-        const tIdx = HOURS.indexOf(t);
-        const hasPrev = j > 0 && HOURS.indexOf(sorted[j-1]) === tIdx - 1;
-        const hasNext = j < sorted.length - 1 && HOURS.indexOf(sorted[j+1]) === tIdx + 1;
-        if (!hasPrev && !hasNext) {
-          errors[t] = "Error: Bloque menor a 1 hora";
-        }
-      }
-      newPrev.validationErrors = { ...prev.validationErrors, [day]: errors };
-      (newPrev as any).validationErrors = { ...(prev as any).validationErrors, [day]: errors };
-      return newPrev;
+      return { ...prev, [day]: current };
     });
   }, []);
 
@@ -76,6 +78,7 @@ export function RegisterAvailability() {
 
   const totalBlocks = Object.values(selections).reduce((sum, arr) => sum + arr.length, 0);
   const canSubmit = totalBlocks > 0;
+  const fieldErrors = computeErrors(selections);
 
   if (submitted) {
     return (
@@ -130,7 +133,7 @@ export function RegisterAvailability() {
                       {weekDays.map((_, dayIdx) => {
                         const dayName = DAY_NAMES[dayIdx];
                         const isSelected = selections[dayName]?.includes(time);
-                        const error = (selections as any).validationErrors?.[dayName]?.[time];
+                        const error = fieldErrors[dayName]?.[time];
                         const isPast = false; // All days in our week are future
                         return (
                           <td key={dayIdx} className={`px-1 py-0.5 ${isPast ? "bg-gray-100" : ""}`}>
