@@ -1,7 +1,8 @@
 "use client";
 import { useState, useCallback } from "react";
-import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Info, Loader2 } from "lucide-react";
 import { DAYS_SHORT, getMonthYear } from "@/lib/utils";
+import { disponibilidadService } from "@/services/disponibilidad";
 
 const HOURS: string[] = [];
 for (let h = 8; h <= 19; h++) {
@@ -17,6 +18,7 @@ export function RegisterAvailability() {
   const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({});
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [dragging, setDragging] = useState<{ day: string; startIdx: number } | null>(null);
 
   const today = new Date(2026, 5, 7);
@@ -198,8 +200,8 @@ export function RegisterAvailability() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowConfirm(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={() => { setShowConfirm(false); setSubmitted(true); }}
-                className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e]">Confirmar</button>
+              <button disabled={submitting} onClick={async () => { setSubmitting(true); try { const rangos = Object.entries(selections).map(([dia, times]) => ({ dia, horaInicio: times[0], horaFin: times[times.length - 1] })); await disponibilidadService.proponer(rangos); setShowConfirm(false); setSubmitted(true); } catch { setSubmitting(false); } }}
+                className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] disabled:opacity-60 flex items-center justify-center gap-2">{submitting && <Loader2 size={16} className="animate-spin" />}Confirmar</button>
             </div>
           </div>
         </div>

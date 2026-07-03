@@ -23,7 +23,11 @@ export type AppointmentStatus =
   | "Rechazado"
   | "Disponible"
   | "Ocupado"
-  | "Aprobada";
+  | "Aprobada"
+  | "PROGRAMADO"
+  | "ATENDIDO"
+  | "CANCELADO"
+  | "REPROGRAMADO";
 
 export interface Appointment {
   id: string;

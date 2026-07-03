@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
-import { Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import type { Role } from "@/lib/types";
+import { authService } from "@/services/auth";
 
 const roleLabels: Record<Role, string> = {
   patient: "Paciente", secretary: "Secretaria Administrativa", doctor: "Médico Especialista",
@@ -26,6 +27,7 @@ export function UserProfile({ role }: { role: Role }) {
   const [confirmPass, setConfirmPass] = useState("");
   const [passError, setPassError] = useState("");
   const [passSuccess, setPassSuccess] = useState(false);
+  const [passLoading, setPassLoading] = useState(false);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -59,11 +61,11 @@ export function UserProfile({ role }: { role: Role }) {
             <AlertCircle size={16} /> {passError}
           </div>
         )}
-        <form onSubmit={e => { e.preventDefault(); setPassError(""); if (!currentPass) { setPassError("Ingrese la contraseña actual"); return; } if (newPass.length < 6) { setPassError("Mínimo 6 caracteres"); return; } if (newPass !== confirmPass) { setPassError("Las contraseñas no coinciden"); return; } setPassSuccess(true); setCurrentPass(""); setNewPass(""); setConfirmPass(""); setTimeout(() => setPassSuccess(false), 4000); }} className="space-y-4">
+        <form onSubmit={async e => { e.preventDefault(); setPassError(""); if (!currentPass) { setPassError("Ingrese la contraseña actual"); return; } if (newPass.length < 6) { setPassError("Mínimo 6 caracteres"); return; } if (newPass !== confirmPass) { setPassError("Las contraseñas no coinciden"); return; } setPassLoading(true); try { await authService.changePassword(currentPass, newPass); setPassSuccess(true); setCurrentPass(""); setNewPass(""); setConfirmPass(""); setTimeout(() => setPassSuccess(false), 4000); } catch { setPassError("Error al actualizar la contraseña. Verifique sus datos."); } finally { setPassLoading(false); } }} className="space-y-4">
           <PasswordField label="Contraseña actual" value={currentPass} onChange={setCurrentPass} show={showCurrent} onToggle={() => setShowCurrent(p => !p)} />
           <PasswordField label="Nueva contraseña" value={newPass} onChange={setNewPass} show={showNew} onToggle={() => setShowNew(p => !p)} />
           <PasswordField label="Confirmar contraseña" value={confirmPass} onChange={setConfirmPass} show={showConfirm} onToggle={() => setShowConfirm(p => !p)} />
-          <button type="submit" className="w-full sm:w-auto px-6 py-2.5 bg-[#006FC1] text-white rounded-lg font-medium hover:bg-[#005a9e] transition-colors text-sm">Actualizar Contraseña</button>
+          <button type="submit" disabled={passLoading} className="w-full sm:w-auto px-6 py-2.5 bg-[#006FC1] text-white rounded-lg font-medium hover:bg-[#005a9e] disabled:opacity-60 transition-colors text-sm flex items-center gap-2">{passLoading && <Loader2 size={16} className="animate-spin" />}Actualizar Contraseña</button>
         </form>
       </div>
     </div>

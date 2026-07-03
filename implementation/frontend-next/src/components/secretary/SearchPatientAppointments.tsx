@@ -1,28 +1,15 @@
 "use client";
 import { useState } from "react";
-import { Search, User, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { Search, User, ChevronDown, ChevronUp, Eye, Loader2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { AppointmentStatus } from "@/lib/types";
+import { pacientesService } from "@/services/pacientes";
+import { citasService } from "@/services/citas";
 
 interface PatientResult {
   dni: string; name: string; email: string; phone: string; totalAppointments: number;
   appointments: { id: string; doctor: string; specialty: string; date: string; time: string; status: AppointmentStatus }[];
 }
-
-const PATIENT_DATA: PatientResult[] = [
-  { dni: "47123456", name: "María García Pérez", email: "m.garcia@email.com", phone: "+51 987 654 321", totalAppointments: 3,
-    appointments: [
-      { id: "CLF-001", doctor: "Dra. Carmen López", specialty: "Ginecología", date: "2026-06-15", time: "10:00", status: "Agendada" },
-      { id: "CLF-098", doctor: "Dra. Patricia Vega", specialty: "Ginecología", date: "2026-05-10", time: "09:00", status: "Atendida" },
-    ] },
-  { dni: "38291047", name: "Rosa Mendoza Quispe", email: "r.mendoza@email.com", phone: "+51 976 123 456", totalAppointments: 2,
-    appointments: [
-      { id: "CLF-002", doctor: "Dr. Miguel Torres", specialty: "Obstetricia", date: "2026-06-07", time: "10:30", status: "Atendida" },
-      { id: "CLF-077", doctor: "Dr. Miguel Torres", specialty: "Obstetricia", date: "2026-05-22", time: "09:00", status: "Atendida" },
-    ] },
-  { dni: "52841930", name: "Julia Torres Silva", email: "j.torres@email.com", phone: "+51 945 678 901", totalAppointments: 1,
-    appointments: [{ id: "CLF-003", doctor: "Dr. Andrés Castro", specialty: "Fertilidad", date: "2026-06-07", time: "11:00", status: "Agendada" }] },
-];
 
 export function SearchPatientAppointments() {
   const [mode, setMode] = useState<"patient" | "code">("patient");
@@ -31,23 +18,55 @@ export function SearchPatientAppointments() {
   const [results, setResults] = useState<PatientResult[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [codeResult, setCodeResult] = useState<{ id: string; patient: string; doctor: string; specialty: string; date: string; time: string; status: AppointmentStatus } | null>(null);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     setSearched(true);
+    setLoading(true);
     if (mode === "patient") {
-      const q = query.trim().toLowerCase();
-      if (!q) { setResults([]); return; }
-      setResults(PATIENT_DATA.filter(p => p.name.toLowerCase().includes(q) || p.dni.includes(q)));
-    } else {
-      const q = codeQuery.toUpperCase();
-      let found = null;
-      for (const p of PATIENT_DATA) {
-        const a = p.appointments.find(ap => ap.id === q);
-        if (a) { found = { ...a, patient: p.name }; break; }
+      const q = query.trim();
+      if (!q) { setResults([]); setLoading(false); return; }
+      try {
+        const res = await pacientesService.getByDni(q);
+        const d = res.data;
+        const patient: PatientResult = {
+          dni: d.dni,
+          name: `${d.nombres} ${d.apellidos}`,
+          email: "",
+          phone: d.telefono,
+          totalAppointments: 0,
+          appointments: [],
+        };
+        setResults([patient]);
+      } catch {
+        setResults([]);
       }
-      setCodeResult(found);
+    } else {
+      const q = codeQuery.trim().toUpperCase();
+      if (!q) { setCodeResult(null); setLoading(false); return; }
+      try {
+        const res = await citasService.getSecretaria({ search: q });
+        const content = res.data?.content ?? [];
+        if (content.length > 0) {
+          const c = content[0] as any;
+          setCodeResult({
+            id: c.codigoCita,
+            patient: c.paciente,
+            doctor: c.medico,
+            specialty: c.especialidad,
+            date: c.fecha,
+            time: c.hora?.slice(0, 5),
+            status: c.estadoCita,
+          });
+        } else {
+          setCodeResult(null);
+        }
+      } catch {
+        setCodeResult(null);
+      }
     }
+    setLoading(false);
   };
 
   return (
@@ -74,7 +93,9 @@ export function SearchPatientAppointments() {
       </div>
 
       {mode === "patient" && searched && (
-        results.length === 0 ? (
+        loading ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-12 text-center"><Loader2 size={28} className="mx-auto text-[#006FC1] animate-spin" /></div>
+        ) : results.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
             <User size={40} className="mx-auto text-gray-300 mb-3" /><p className="text-gray-500">No se encontraron pacientes.</p>
           </div>
@@ -113,7 +134,9 @@ export function SearchPatientAppointments() {
       )}
 
       {mode === "code" && searched && (
-        codeResult === null ? (
+        loading ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-12 text-center"><Loader2 size={28} className="mx-auto text-[#006FC1] animate-spin" /></div>
+        ) : codeResult === null ? (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center"><Search size={40} className="mx-auto text-gray-300 mb-3" /><p className="text-gray-500">No se encontró ninguna cita.</p></div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

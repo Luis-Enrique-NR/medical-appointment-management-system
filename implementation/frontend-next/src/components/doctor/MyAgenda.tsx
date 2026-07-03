@@ -1,28 +1,14 @@
 "use client";
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { AppointmentStatus } from "@/lib/types";
+import { citasService } from "@/services/citas";
 
 interface AgendaItem {
   id: string; time: string; patient: string; dni: string; phone: string;
   specialty: string; code: string; consultorio: string; status: AppointmentStatus;
 }
-
-const AGENDA_DATA: Record<string, AgendaItem[]> = {
-  "2026-06-07": [
-    { id: "1", time: "09:00", patient: "María García Pérez", dni: "47123456", phone: "+51 987 654 321", specialty: "Ginecología", code: "CLF-001", consultorio: "C2", status: "Agendada" },
-    { id: "2", time: "10:30", patient: "Rosa Mendoza Quispe", dni: "38291047", phone: "+51 976 123 456", specialty: "Ginecología", code: "CLF-002", consultorio: "C2", status: "Atendida" },
-    { id: "3", time: "14:00", patient: "Julia Torres Silva", dni: "52841930", phone: "+51 945 678 901", specialty: "Ginecología", code: "CLF-003", consultorio: "C2", status: "Agendada" },
-  ],
-  "2026-06-08": [
-    { id: "4", time: "08:30", patient: "Laura Quispe Flores", dni: "61029384", phone: "+51 912 345 678", specialty: "Ginecología", code: "CLF-004", consultorio: "C2", status: "Agendada" },
-  ],
-  "2026-06-09": [],
-  "2026-06-10": [
-    { id: "6", time: "09:30", patient: "Ana Lima Torres", dni: "73920184", phone: "+51 965 432 198", specialty: "Ginecología", code: "CLF-007", consultorio: "C1", status: "Agendada" },
-  ],
-};
 
 const MONTHS_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const DAYS_FULL = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
@@ -31,11 +17,39 @@ function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
+function formatDateBackend(d: Date): string {
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
 export function MyAgenda() {
   const [date, setDate] = useState(new Date(2026, 5, 7));
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const dateStr = toDateStr(date);
-  const items = AGENDA_DATA[dateStr] ?? [];
+  const [items, setItems] = useState<AgendaItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    citasService.getAgenda(formatDateBackend(date))
+      .then(res => {
+        const data = res.data ?? [];
+        setItems(data.map((c: any) => ({
+          id: c.idCita,
+          time: c.hora?.slice(0, 5),
+          patient: c.paciente,
+          dni: c.dniPaciente,
+          phone: c.telefono ?? "",
+          specialty: c.especialidad,
+          code: c.codigoCita,
+          consultorio: c.codigoConsultorio,
+          status: c.estadoCita,
+        })));
+      })
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [date]);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -53,7 +67,9 @@ export function MyAgenda() {
           <button onClick={() => setDate(new Date(2026, 5, 7))} className="px-4 py-1.5 text-sm border border-[#006FC1] text-[#006FC1] rounded-lg hover:bg-[#006FC1]/5">Hoy</button>
         </div>
       </div>
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-16 text-center"><Loader2 size={32} className="mx-auto text-[#006FC1] animate-spin mb-3" /><p className="text-gray-500">Cargando agenda...</p></div>
+      ) : items.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-16 text-center">
           <Calendar size={44} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500 font-medium">Sin citas programadas para este día</p>

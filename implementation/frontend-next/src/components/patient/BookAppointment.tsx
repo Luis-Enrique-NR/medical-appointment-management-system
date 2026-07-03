@@ -1,26 +1,13 @@
 "use client";
-import { useState, useMemo } from "react";
-import { ChevronRight, ChevronLeft, CheckCircle2, Baby, Heart, Stethoscope, Calendar } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { ChevronRight, ChevronLeft, CheckCircle2, Baby, Heart, Stethoscope, Calendar, Loader2 } from "lucide-react";
 import { getMonthYear, DAYS_SHORT } from "@/lib/utils";
+import { especialidadesService } from "@/services/especialidades";
+import { medicosService } from "@/services/medicos";
+import { citasService } from "@/services/citas";
 
-const SPECIALTIES = [
-  { id: "gynecology", name: "Ginecología", icon: <Heart size={28} className="text-[#FF82B6]" />, desc: "Salud femenina y ginecológica" },
-  { id: "obstetrics", name: "Obstetricia", icon: <Baby size={28} className="text-[#0AC0AB]" />, desc: "Atención durante el embarazo" },
-  { id: "fertility", name: "Fertilidad", icon: <Stethoscope size={28} className="text-[#006FC1]" />, desc: "Tratamientos de fertilidad" },
-];
-
-const DOCTORS: Record<string, { id: string; name: string; specialty: string; availableDays: number[]; occupiedSlots: string[] }[]> = {
-  gynecology: [
-    { id: "d1", name: "Dra. Carmen López", specialty: "Ginecología", availableDays: [1,2,3,4,5], occupiedSlots: ["09:00","10:30","14:00"] },
-    { id: "d2", name: "Dra. Patricia Vega", specialty: "Ginecología", availableDays: [1,2,4,5,6], occupiedSlots: ["08:30","11:00","15:00"] },
-  ],
-  obstetrics: [
-    { id: "d3", name: "Dr. Miguel Torres", specialty: "Obstetricia", availableDays: [2,3,4,5], occupiedSlots: ["10:00","11:30","15:30"] },
-    { id: "d4", name: "Dra. Sofia Morales", specialty: "Obstetricia", availableDays: [1,3,4,6], occupiedSlots: ["09:30","14:30","16:00"] },
-  ],
-  fertility: [
-    { id: "d5", name: "Dr. Andrés Castro", specialty: "Fertilidad", availableDays: [1,2,3,5], occupiedSlots: ["08:00","10:00","14:00","16:30"] },
-  ],
+const ICON_MAP: Record<string, React.ReactNode> = {
+  default: <Stethoscope size={28} className="text-[#006FC1]" />,
 };
 
 const TIME_SLOTS: string[] = [];
@@ -32,51 +19,88 @@ for (let h = 8; h <= 17; h++) {
 
 export function BookAppointment({ userName }: { userName: string }) {
   const [step, setStep] = useState(1);
-  const [specialty, setSpecialty] = useState<string | null>(null);
+  const [specialties, setSpecialties] = useState<any[]>([]);
+  const [specialty, setSpecialty] = useState<number | null>(null);
+  const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
+  const [horarios, setHorarios] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [appointmentCode] = useState(`CLF-${Math.floor(100000 + Math.random() * 900000)}`);
+  const [appointmentCode, setAppointmentCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const docList = specialty ? (DOCTORS[specialty] ?? []) : [];
-  const doctorObj = useMemo(() => {
-    if (!selectedDoctor) return null;
-    for (const arr of Object.values(DOCTORS)) {
-      const found = arr.find(d => d.id === selectedDoctor);
-      if (found) return found;
+  useEffect(() => {
+    especialidadesService.getAll().then(res => setSpecialties(res.data ?? [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (specialty !== null) {
+      setLoading(true);
+      setSelectedDoctor(null);
+      setSelectedDate(null);
+      setSelectedTime(null);
+      especialidadesService.getMedicos(specialty)
+        .then(res => setDoctors(res.data ?? []))
+        .catch(() => setDoctors([]))
+        .finally(() => setLoading(false));
     }
-    return null;
+  }, [specialty]);
+
+  useEffect(() => {
+    if (selectedDoctor) {
+      setLoading(true);
+      setSelectedDate(null);
+      setSelectedTime(null);
+      medicosService.getHorarios(selectedDoctor)
+        .then(res => setHorarios(res.data ?? []))
+        .catch(() => setHorarios([]))
+        .finally(() => setLoading(false));
+    }
   }, [selectedDoctor]);
 
+  const doctorObj = useMemo(() => doctors.find(d => d.idMedico === selectedDoctor) ?? null, [selectedDoctor, doctors]);
+
   const calendarDays = useMemo(() => {
-    if (!doctorObj) return [];
-    const today = new Date(2026, 5, 7);
-    const days: { date: Date; available: boolean; disabled: boolean }[] = [];
+    if (!horarios.length) return [];
+    const today = new Date();
+    const daysMap: Record<string, { date: Date; available: boolean; disabled: boolean }> = {};
+    for (const h of horarios) {
+      const [d, m, y] = h.fecha.split("-");
+      const dt = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+      const key = dt.toDateString();
+      daysMap[key] = { date: dt, available: true, disabled: false };
+    }
+    const result: { date: Date; available: boolean; disabled: boolean }[] = [];
     for (let i = 0; i < 30; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      const dow = d.getDay();
-      const isPastDate = i < 2;
-      const isAvailableOnDay = doctorObj.availableDays.includes(dow === 0 ? 7 : dow);
-      days.push({
-        date: d,
-        available: isAvailableOnDay && dow !== 0 && !isPastDate,
-        disabled: dow === 0 || isPastDate || !isAvailableOnDay,
-      });
+      const key = d.toDateString();
+      if (daysMap[key]) {
+        result.push(daysMap[key]);
+      } else {
+        result.push({ date: d, available: false, disabled: true });
+      }
     }
-    return days;
-  }, [doctorObj]);
+    return result;
+  }, [horarios]);
 
   const doctorTimeSlots = useMemo(() => {
-    if (!doctorObj) return [];
-    return TIME_SLOTS.map(t => ({
-      time: t,
-      available: !doctorObj.occupiedSlots.includes(t),
+    if (!selectedDate || !horarios.length) return [];
+    const dd = String(selectedDate.getDate()).padStart(2, "0");
+    const mm = String(selectedDate.getMonth() + 1).padStart(2, "0");
+    const yyyy = selectedDate.getFullYear();
+    const dateStr = `${dd}-${mm}-${yyyy}`;
+    const dayHorarios = horarios.filter((h: any) => h.fecha === dateStr);
+    return dayHorarios.map((h: any) => ({
+      time: h.horaInicio?.slice(0, 5),
+      idAsignacionBloque: h.idAsignacionBloque ?? h.idBloque,
+      available: true,
     }));
-  }, [doctorObj]);
+  }, [selectedDate, horarios]);
 
-  const currentMonth = selectedDate || new Date(2026, 5, 7);
+  const currentMonth = selectedDate || new Date();
 
   const canNext = () => {
     if (step === 1) return specialty !== null;
@@ -103,11 +127,10 @@ export function BookAppointment({ userName }: { userName: string }) {
           <p className="text-gray-500 mb-4 text-sm">Su cita ha sido agendada exitosamente</p>
           <div className="bg-gray-50 rounded-xl p-4 mb-6"><p className="text-xs text-gray-500 mb-1">Código</p><p className="text-[#006FC1] font-bold text-xl">{appointmentCode}</p></div>
           <div className="text-sm text-gray-600 space-y-1.5 mb-6 text-left">
-            <Row label="Especialidad" value={SPECIALTIES.find(s=>s.id===specialty)?.name ?? ""} />
-            <Row label="Doctor" value={doctorObj?.name ?? ""} />
+            <Row label="Especialidad" value={specialties.find(s=>s.idEspecialidad===specialty)?.nombre ?? ""} />
+            <Row label="Doctor" value={doctorObj?.nombre ?? ""} />
             <Row label="Fecha" value={selectedDate?.toLocaleDateString("es-PE", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) ?? ""} />
             <Row label="Hora" value={selectedTime ?? ""} />
-            <Row label="Consultorio" value="Consultorio 3" />
           </div>
           <button onClick={handleReset} className="w-full bg-[#006FC1] text-white py-2.5 rounded-lg font-medium hover:bg-[#005a9e] transition-colors text-sm">Agendar otra cita</button>
         </div>
@@ -138,13 +161,13 @@ export function BookAppointment({ userName }: { userName: string }) {
             <h2 className="text-[#05576D] text-lg font-semibold mb-1">Seleccione una Especialidad</h2>
             <p className="text-gray-500 mb-5 text-sm">Elija la especialidad médica que necesita</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {SPECIALTIES.map(sp => (
-                <button key={sp.id} onClick={() => { setSpecialty(sp.id); setSelectedDoctor(null); setSelectedDate(null); setSelectedTime(null); }}
-                  className={`p-5 rounded-xl border-2 text-left transition-all ${specialty === sp.id ? "border-[#006FC1] bg-[#006FC1]/5" : "border-gray-200 hover:border-[#0F96CB]/50 hover:bg-gray-50"}`}>
-                  <div className="mb-3">{sp.icon}</div>
-                  <p className="font-semibold text-[#05576D] text-sm">{sp.name}</p>
-                  <p className="text-gray-500 mt-1 text-xs">{sp.desc}</p>
-                  {specialty === sp.id && <div className="mt-3 flex items-center gap-1 text-[#006FC1] text-xs"><CheckCircle2 size={14} /> <span>Seleccionada</span></div>}
+              {specialties.map(sp => (
+                <button key={sp.idEspecialidad} onClick={() => { setSpecialty(sp.idEspecialidad); setSelectedDoctor(null); setSelectedDate(null); setSelectedTime(null); }}
+                  className={`p-5 rounded-xl border-2 text-left transition-all ${specialty === sp.idEspecialidad ? "border-[#006FC1] bg-[#006FC1]/5" : "border-gray-200 hover:border-[#0F96CB]/50 hover:bg-gray-50"}`}>
+                  <div className="mb-3"><Stethoscope size={28} className="text-[#006FC1]" /></div>
+                  <p className="font-semibold text-[#05576D] text-sm">{sp.nombre}</p>
+                  <p className="text-gray-500 mt-1 text-xs">{sp.descripcion}</p>
+                  {specialty === sp.idEspecialidad && <div className="mt-3 flex items-center gap-1 text-[#006FC1] text-xs"><CheckCircle2 size={14} /> <span>Seleccionada</span></div>}
                 </button>
               ))}
             </div>
@@ -154,21 +177,23 @@ export function BookAppointment({ userName }: { userName: string }) {
         {step === 2 && (
           <div>
             <h2 className="text-[#05576D] text-lg font-semibold mb-4">Seleccione un Doctor</h2>
-            {docList.length === 0 ? (
+            {loading ? (
+              <div className="py-8 text-center"><Loader2 size={24} className="mx-auto text-[#006FC1] animate-spin" /></div>
+            ) : doctors.length === 0 ? (
               <p className="text-gray-500 text-sm">No hay doctores disponibles para esta especialidad.</p>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
-                {docList.map(doc => (
-                  <button key={doc.id} onClick={() => { setSelectedDoctor(doc.id); setSelectedDate(null); setSelectedTime(null); }}
-                    className={`p-5 rounded-xl border-2 text-left transition-all ${selectedDoctor === doc.id ? "border-[#006FC1] bg-[#006FC1]/5 ring-2 ring-[#006FC1]/20" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"}`}>
+                {doctors.map(doc => (
+                  <button key={doc.idMedico} onClick={() => { setSelectedDoctor(doc.idMedico); setSelectedDate(null); setSelectedTime(null); }}
+                    className={`p-5 rounded-xl border-2 text-left transition-all ${selectedDoctor === doc.idMedico ? "border-[#006FC1] bg-[#006FC1]/5 ring-2 ring-[#006FC1]/20" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"}`}>
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 rounded-full bg-[#0F96CB]/20 flex items-center justify-center text-[#0F96CB] font-bold text-xl flex-shrink-0">
-                        {doc.name.charAt(0)}
+                        {doc.nombre.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-[#05576D] text-sm">{doc.name}</p>
-                        <p className="text-gray-500 text-xs mt-0.5">{doc.specialty}</p>
-                        {selectedDoctor === doc.id && (
+                        <p className="font-semibold text-[#05576D] text-sm">{doc.nombre}</p>
+                        <p className="text-gray-500 text-xs mt-0.5">{doc.descripcion}</p>
+                        {selectedDoctor === doc.idMedico && (
                           <span className="inline-flex items-center mt-2 text-xs text-[#006FC1] font-medium">
                             <CheckCircle2 size={12} className="mr-1" /> Seleccionado
                           </span>
@@ -186,7 +211,7 @@ export function BookAppointment({ userName }: { userName: string }) {
           <div>
             <h2 className="text-[#05576D] text-lg font-semibold mb-1">Seleccione una Fecha</h2>
             <p className="text-gray-500 mb-5 text-sm">
-              Fechas disponibles para <strong>{doctorObj?.name}</strong>
+              Fechas disponibles para <strong>{doctorObj?.nombre}</strong>
             </p>
             {calendarDays.length === 0 || calendarDays.filter(d => d.available).length === 0 ? (
               <div className="py-12 text-center">
@@ -224,7 +249,7 @@ export function BookAppointment({ userName }: { userName: string }) {
           <div>
             <h2 className="text-[#05576D] text-lg font-semibold mb-1">Seleccione un Horario</h2>
             <p className="text-gray-500 mb-2 text-sm">
-              <strong>{doctorObj?.name}</strong> &middot; {selectedDate?.toLocaleDateString("es-PE", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+              <strong>{doctorObj?.nombre}</strong> &middot; {selectedDate?.toLocaleDateString("es-PE", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
             </p>
             <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
               {doctorTimeSlots.map((slot, i) => (
@@ -253,9 +278,9 @@ export function BookAppointment({ userName }: { userName: string }) {
               Siguiente <ChevronRight size={16} />
             </button>
           ) : (
-            <button onClick={() => setShowSuccess(true)} disabled={!selectedTime}
-              className="px-6 py-2 rounded-lg bg-[#006FC1] text-white hover:bg-[#005a9e] transition-colors text-sm font-medium">
-              Confirmar Cita
+            <button disabled={!selectedTime || submitting} onClick={async () => { setSubmitting(true); try { const slot = doctorTimeSlots.find(s => s.time === selectedTime); const res = await citasService.crear({ idAsignacionBloque: slot?.idAsignacionBloque ?? 0 }); setAppointmentCode(`CT-${Date.now()}`); setShowSuccess(true); } catch { alert("Error al crear la cita."); } finally { setSubmitting(false); } }}
+              className="px-6 py-2 rounded-lg bg-[#006FC1] text-white hover:bg-[#005a9e] disabled:opacity-60 transition-colors text-sm font-medium flex items-center gap-2">
+              {submitting && <Loader2 size={16} className="animate-spin" />}Confirmar Cita
             </button>
           )}
         </div>
