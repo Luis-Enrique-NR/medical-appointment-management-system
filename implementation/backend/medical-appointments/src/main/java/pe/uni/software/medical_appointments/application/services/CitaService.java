@@ -1,15 +1,21 @@
 package pe.uni.software.medical_appointments.application.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.uni.software.medical_appointments.application.dtos.cita.request.RegisterCitaRequest;
 import pe.uni.software.medical_appointments.application.dtos.cita.request.UpdateCitaRequest;
+import pe.uni.software.medical_appointments.application.dtos.cita.response.GetCitaResponse;
 import pe.uni.software.medical_appointments.application.mappers.CitaMapper;
 import pe.uni.software.medical_appointments.domain.entities.AsignacionBloque;
 import pe.uni.software.medical_appointments.domain.entities.Cita;
+import pe.uni.software.medical_appointments.domain.entities.Medico;
 import pe.uni.software.medical_appointments.domain.entities.Paciente;
 import pe.uni.software.medical_appointments.domain.entities.Secretaria;
 import pe.uni.software.medical_appointments.domain.entities.Usuario;
@@ -17,15 +23,21 @@ import pe.uni.software.medical_appointments.domain.enums.AccionCita;
 import pe.uni.software.medical_appointments.domain.enums.EstadoCita;
 import pe.uni.software.medical_appointments.domain.enums.RolUsuario;
 import pe.uni.software.medical_appointments.exception.BadRequestException;
+import pe.uni.software.medical_appointments.exception.ForbiddenException;
 import pe.uni.software.medical_appointments.exception.NotFoundException;
 import pe.uni.software.medical_appointments.infraestructure.repositories.AsignacionBloqueRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.CitaRepository;
+import pe.uni.software.medical_appointments.infraestructure.repositories.MedicoRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.PacienteRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.SecretariaRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.UsuarioRepository;
 import pe.uni.software.medical_appointments.util.CodeGenerator;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +47,7 @@ public class CitaService {
   private final AsignacionBloqueRepository asignacionBloqueRepository;
   private final PacienteRepository pacienteRepository;
   private final SecretariaRepository secretariaRepository;
+  private final MedicoRepository medicoRepository;
   private final CitaRepository citaRepository;
 
   @Transactional
@@ -110,9 +123,9 @@ public class CitaService {
   @Transactional
   public void updateAppointment(UpdateCitaRequest request) {
 
-    // 1. Buscar la cita actual usando el id del bloque asignado.
-    Cita citaActual = citaRepository.findByAsignacionBloqueId(request.getIdAsignacionBloqueActual())
-            .orElseThrow(() -> new NotFoundException("No se encontró una cita asociada al bloque actual"));
+    // 1. Buscar la cita directamente por su ID (Cambio según el nuevo DTO)
+    Cita citaActual = citaRepository.findById(request.getIdCita())
+            .orElseThrow(() -> new NotFoundException("No se encontró una cita con el ID proporcionado"));
 
     // 2. Liberar el bloque horario actual para que vuelva a estar disponible
     AsignacionBloque bloqueActual = citaActual.getAsignacionBloque();
@@ -130,7 +143,7 @@ public class CitaService {
 
       // Validar que venga el nuevo bloque en el request
       if (request.getIdAsignacionBloqueNuevo() == null) {
-        throw new IllegalArgumentException("El ID del nuevo bloque horario es obligatorio para reprogramar");
+        throw new BadRequestException("El ID del nuevo bloque horario es obligatorio para reprogramar");
       }
 
       // Actualizar datos de la cita antigua a REPROGRAMADO
@@ -140,8 +153,12 @@ public class CitaService {
 
       // Preparar el DTO para registrar la nueva cita
       RegisterCitaRequest registerRequest = new RegisterCitaRequest();
-      // Reutilizamos el idPaciente (si lo envían) o se inferirá dentro de registerAppointment
-      registerRequest.setIdPaciente(request.getIdPaciente());
+
+      UUID idPaciente = (request.getIdPaciente() != null)
+              ? request.getIdPaciente()
+              : citaActual.getPaciente().getIdPersona();
+
+      registerRequest.setIdPaciente(idPaciente);
       registerRequest.setIdAsignacionBloque(request.getIdAsignacionBloqueNuevo());
 
       // Llamar al método existente para registrar la nueva cita
@@ -152,5 +169,65 @@ public class CitaService {
     }
   }
 
-  
+  public List<GetCitaResponse> getMedicoAgendaByFecha(LocalDate fecha){
+    // 1. Obtener la sesión y el rol del usuario actual (debe ser un médico)
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    String correo = auth.getName();
+
+    // 2. Obtener el usuario para validar el rol
+    Usuario usuarioAutenticado = usuarioRepository.findByCorreoWithRoles(correo)
+            .orElseThrow(() -> new NotFoundException("No se encontró usuario con correo: " + correo));
+
+    String nombreRol = usuarioAutenticado.getRol().getNombre().toUpperCase();
+
+    if (!nombreRol.contains(RolUsuario.MEDICO_ESPECIALISTA.toString())) {
+      throw new BadRequestException("El rol actual (" + nombreRol + ") no tiene permisos para ver la agenda médica.");
+    }
+
+    // 3. Buscar al Médico directamente a través del ID del Usuario (Evitamos el NullPointerException)
+    Medico medico = medicoRepository.findByPersonaUsuarioId(usuarioAutenticado.getId())
+            .orElseThrow(() -> new NotFoundException("No se encontró el perfil de médico para el usuario actual"));
+
+    // 4. Usar el repositorio para buscar las citas programadas
+    List<Cita> citas = citaRepository.findCitasByMedicoAndFechaAndEstado(medico.getIdPersona(), fecha);
+
+    // 5. Mapear las entidades a DTOs de respuesta
+    return citas.stream()
+            .map(CitaMapper::mapCitaResponse)
+            .collect(Collectors.toList());
+  }
+
+  public List<GetCitaResponse> listarProximasCitasPaciente(UUID idPaciente) {
+      List<Cita> citas = citaRepository.findProximasCitasByPaciente(idPaciente, LocalDate.now());
+      return citas.stream()
+              .map(CitaMapper::mapCitaResponse)
+              .collect(Collectors.toList());
+  }
+
+  public Page<GetCitaResponse> obtenerHistorialCitasPaciente(UUID idPaciente, int page) {
+      Pageable pageable = PageRequest.of(page, 10, Sort.by("asignacionBloque.fecha").descending().and(Sort.by("asignacionBloque.bloqueHorario.horaInicio").descending()));
+      Page<Cita> citas = citaRepository.findHistorialCitasByPaciente(idPaciente, LocalDate.now(), pageable);
+      return citas.map(CitaMapper::mapCitaResponse);
+  }
+
+  public Page<GetCitaResponse> obtenerAgendaGeneralSecretaria(boolean soloHoy, String search, int page) {
+      Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+      String correo = auth.getName();
+
+      Usuario usuarioAutenticado = usuarioRepository.findByCorreoWithRoles(correo)
+              .orElseThrow(() -> new NotFoundException("No se encontró usuario con correo: " + correo));
+
+      String nombreRol = usuarioAutenticado.getRol().getNombre().toUpperCase();
+
+      if (!nombreRol.contains(RolUsuario.SECRETARIA_ADMINISTRATIVA.toString())) {
+          throw new ForbiddenException("El rol actual (" + nombreRol + ") no tiene permisos para acceder a este recurso.");
+      }
+
+      Pageable pageable = PageRequest.of(page, 10, Sort.by("asignacionBloque.fecha").ascending().and(Sort.by("asignacionBloque.bloqueHorario.horaInicio").ascending()));
+
+      LocalDate fechaInicio = LocalDate.now();
+      Page<Cita> citasPage = citaRepository.findCitasForSecretaria(fechaInicio, soloHoy, search, pageable);
+
+      return citasPage.map(CitaMapper::mapCitaResponse);
+  }
 }

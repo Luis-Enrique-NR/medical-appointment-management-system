@@ -20,6 +20,8 @@ import pe.uni.software.medical_appointments.application.dtos.cita.request.Update
 import pe.uni.software.medical_appointments.application.services.CitaService;
 import pe.uni.software.medical_appointments.domain.enums.AccionCita;
 import pe.uni.software.medical_appointments.exception.BadRequestException;
+
+import java.util.UUID;
 import pe.uni.software.medical_appointments.exception.NotFoundException;
 import pe.uni.software.medical_appointments.service.JwtService;
 
@@ -185,7 +187,7 @@ class CitaControllerTest {
 
     private UpdateCitaRequest buildUpdateRequest() {
         UpdateCitaRequest request = new UpdateCitaRequest();
-        request.setIdAsignacionBloqueActual(100);
+        request.setIdCita(UUID.randomUUID());
         request.setIdAsignacionBloqueNuevo(200);
         request.setAccion(AccionCita.REPROGRAMAR);
         request.setMotivoActualizacion("Cambio de horario");
@@ -227,7 +229,7 @@ class CitaControllerTest {
     @WithMockUser(roles = {"PACIENTE"})
     void actualizarCita_whenAccionNull_debeRetornar400() throws Exception {
         UpdateCitaRequest request = new UpdateCitaRequest();
-        request.setIdAsignacionBloqueActual(100);
+        request.setIdCita(UUID.randomUUID());
 
         mockMvc.perform(put("/api/v1/cita")
                         .contentType(MediaType.APPLICATION_JSON)

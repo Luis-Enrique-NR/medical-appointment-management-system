@@ -269,21 +269,22 @@ class CitaServiceTest {
     // PRUEBAS PARA updateAppointment() — Caja blanca (V(G) = 5)
     // ========================================================================
 
-    private UpdateCitaRequest buildUpdateRequest(Integer idActual, Integer idNuevo,
+    private UpdateCitaRequest buildUpdateRequest(UUID idCita, Integer idNuevo,
                                                   AccionCita accion, String motivo) {
         UpdateCitaRequest r = new UpdateCitaRequest();
-        r.setIdAsignacionBloqueActual(idActual);
+        r.setIdCita(idCita);
         r.setIdAsignacionBloqueNuevo(idNuevo);
         r.setAccion(accion);
         r.setMotivoActualizacion(motivo);
         return r;
     }
 
-    // CS12: Cita no encontrada por bloque actual
+    // CS12: Cita no encontrada por idCita
     @Test
     void updateAppointment_CS12_citaNoEncontrada_shouldThrowNotFoundException() {
-        when(citaRepository.findByAsignacionBloqueId(100)).thenReturn(Optional.empty());
-        UpdateCitaRequest request = buildUpdateRequest(100, null, AccionCita.CANCELAR, null);
+        UUID citaId = UUID.randomUUID();
+        when(citaRepository.findById(citaId)).thenReturn(Optional.empty());
+        UpdateCitaRequest request = buildUpdateRequest(citaId, null, AccionCita.CANCELAR, null);
 
         NotFoundException ex = assertThrows(NotFoundException.class,
                 () -> citaService.updateAppointment(request));
@@ -293,11 +294,12 @@ class CitaServiceTest {
     // CS13: Acción = CANCELAR, flujo feliz
     @Test
     void updateAppointment_CS13_cancelar_shouldLiberarBloqueYActualizarEstado() {
+        UUID citaId = UUID.randomUUID();
         Cita cita = Cita.builder()
                 .asignacionBloque(bloqueDisponible)
                 .estado(EstadoCita.PROGRAMADO.toString()).build();
-        when(citaRepository.findByAsignacionBloqueId(100)).thenReturn(Optional.of(cita));
-        UpdateCitaRequest request = buildUpdateRequest(100, null, AccionCita.CANCELAR, "Motivo de cancelación");
+        when(citaRepository.findById(citaId)).thenReturn(Optional.of(cita));
+        UpdateCitaRequest request = buildUpdateRequest(citaId, null, AccionCita.CANCELAR, "Motivo de cancelación");
 
         citaService.updateAppointment(request);
 
@@ -307,27 +309,30 @@ class CitaServiceTest {
         assertEquals("Motivo de cancelación", cita.getMotivoActualizacion());
     }
 
-    // CS14: Acción = REPROGRAMAR, sin nuevo bloque → IllegalArgumentException
+    // CS14: Acción = REPROGRAMAR, sin nuevo bloque → BadRequestException
     @Test
-    void updateAppointment_CS14_reprogramarSinNuevoBloque_shouldThrowIllegalArgumentException() {
+    void updateAppointment_CS14_reprogramarSinNuevoBloque_shouldThrowBadRequestException() {
+        UUID citaId = UUID.randomUUID();
         Cita cita = Cita.builder()
                 .asignacionBloque(bloqueDisponible)
                 .estado(EstadoCita.PROGRAMADO.toString()).build();
-        when(citaRepository.findByAsignacionBloqueId(100)).thenReturn(Optional.of(cita));
-        UpdateCitaRequest request = buildUpdateRequest(100, null, AccionCita.REPROGRAMAR, "Reprogramar");
+        when(citaRepository.findById(citaId)).thenReturn(Optional.of(cita));
+        UpdateCitaRequest request = buildUpdateRequest(citaId, null, AccionCita.REPROGRAMAR, "Reprogramar");
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        BadRequestException ex = assertThrows(BadRequestException.class,
                 () -> citaService.updateAppointment(request));
-        assertTrue(ex.getMessage().contains("ID del nuevo bloque"));
+        assertTrue(ex.getMessage().contains("ID del nuevo bloque horario"));
     }
 
     // CS15: Acción = REPROGRAMAR, flujo feliz (inner registerAppointment con role PACIENTE)
     @Test
     void updateAppointment_CS15_reprogramarHappyPath_shouldReprogramarYRegistrarNueva() {
+        UUID citaId = UUID.randomUUID();
         Cita cita = Cita.builder()
                 .asignacionBloque(bloqueDisponible)
-                .estado(EstadoCita.PROGRAMADO.toString()).build();
-        when(citaRepository.findByAsignacionBloqueId(100)).thenReturn(Optional.of(cita));
+                .estado(EstadoCita.PROGRAMADO.toString())
+                .paciente(pacienteMock).build();
+        when(citaRepository.findById(citaId)).thenReturn(Optional.of(cita));
 
         // Stubs para el inner registerAppointment (role PACIENTE)
         when(usuarioRepository.findByCorreoWithRoles(CORREO)).thenReturn(Optional.of(usuarioPaciente));
@@ -335,7 +340,7 @@ class CitaServiceTest {
         when(pacienteRepository.findByUsuarioId(usuarioPaciente.getId())).thenReturn(Optional.of(pacienteMock));
         when(citaRepository.existsByCodigo(anyString())).thenReturn(false);
 
-        UpdateCitaRequest request = buildUpdateRequest(100, 200, AccionCita.REPROGRAMAR, "Reprogramar");
+        UpdateCitaRequest request = buildUpdateRequest(citaId, 200, AccionCita.REPROGRAMAR, "Reprogramar");
 
         citaService.updateAppointment(request);
 
@@ -352,11 +357,12 @@ class CitaServiceTest {
     // CS16: Acción inválida
     @Test
     void updateAppointment_CS16_accionInvalida_shouldThrowBadRequestException() {
+        UUID citaId = UUID.randomUUID();
         Cita cita = Cita.builder()
                 .asignacionBloque(bloqueDisponible)
                 .estado(EstadoCita.PROGRAMADO.toString()).build();
-        when(citaRepository.findByAsignacionBloqueId(100)).thenReturn(Optional.of(cita));
-        UpdateCitaRequest request = buildUpdateRequest(100, null, null, null);
+        when(citaRepository.findById(citaId)).thenReturn(Optional.of(cita));
+        UpdateCitaRequest request = buildUpdateRequest(citaId, null, null, null);
 
         BadRequestException ex = assertThrows(BadRequestException.class,
                 () -> citaService.updateAppointment(request));
