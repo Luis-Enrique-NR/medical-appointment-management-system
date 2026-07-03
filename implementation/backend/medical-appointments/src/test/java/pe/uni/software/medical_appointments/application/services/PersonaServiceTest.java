@@ -56,8 +56,8 @@ class PersonaServiceTest {
         validRequest.setApellidos("Núñez");
         validRequest.setTelefono("912345678");
 
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn(CORREO_AUTENTICADO);
+        lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
+        lenient().when(authentication.getName()).thenReturn(CORREO_AUTENTICADO);
         SecurityContextHolder.setContext(securityContext);
     }
 
@@ -203,5 +203,33 @@ class PersonaServiceTest {
 
         assertTrue(exception.getMessage().contains("No se encontró usuario con correo"));
         verify(personaRepository, never()).save(any());
+    }
+
+    @Test
+    void getByDni_whenPersonaExiste_debeRetornarPersona() {
+        Persona persona = Persona.builder()
+                .id(UUID.randomUUID())
+                .dni("12345678")
+                .nombres("Luis")
+                .apellidos("Núñez")
+                .telefono("912345678")
+                .build();
+        when(personaRepository.findByDni("12345678")).thenReturn(Optional.of(persona));
+
+        Persona resultado = personaService.getByDni("12345678");
+
+        assertNotNull(resultado);
+        assertEquals("12345678", resultado.getDni());
+        assertEquals("Luis", resultado.getNombres());
+    }
+
+    @Test
+    void getByDni_whenPersonaNoExiste_debeLanzarNotFoundException() {
+        when(personaRepository.findByDni("12345678")).thenReturn(Optional.empty());
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> personaService.getByDni("12345678"));
+
+        assertTrue(exception.getMessage().contains("No se encontró persona con dni"));
     }
 }

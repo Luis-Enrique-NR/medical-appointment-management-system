@@ -161,10 +161,11 @@ public class DisponibilidadService {
     propuestaDisponibilidadRepository.save(propuesta);
   }
 
-  public List<PropuestaDisponibilidadResponse> listPendingProposals() {
+  public List<PropuestaDisponibilidadResponse> listPendingProposals(Integer idEspecialidad) {
 
-    // 1. Obtener la lista de Propuestas con todas sus relaciones cargadas
-    List<PropuestaDisponibilidad> propuestas = propuestaDisponibilidadRepository.findByEstadoWithDetails(EstadoPropuesta.PENDIENTE.name());
+    // 1. Obtener la lista filtrada por estado PENDIENTE y especialidad
+    List<PropuestaDisponibilidad> propuestas = propuestaDisponibilidadRepository
+            .findByEstadoAndEspecialidadWithDetails(EstadoPropuesta.PENDIENTE.name(), idEspecialidad);
 
     // 2. Organizar y mapear en DTOs
     return propuestas.stream().map(propuesta -> {

@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.uni.software.medical_appointments.application.dtos.paciente.request.RegisterPersonRequest;
 import pe.uni.software.medical_appointments.application.dtos.paciente.response.GetPatientResponse;
 import pe.uni.software.medical_appointments.application.mappers.PacienteMapper;
+import pe.uni.software.medical_appointments.domain.entities.Paciente;
 import pe.uni.software.medical_appointments.domain.entities.Persona;
 import pe.uni.software.medical_appointments.exception.NotFoundException;
 import pe.uni.software.medical_appointments.infraestructure.repositories.PacienteRepository;
@@ -20,7 +21,7 @@ public class PacienteService {
   private final PersonaService personaService;
 
   @Transactional
-  public void registerPatient(RegisterPersonRequest request) {
+  public GetPatientResponse registerPatient(RegisterPersonRequest request) {
     Persona persona = personaService.registerPerson(request);
 
     String codigo;
@@ -32,16 +33,17 @@ public class PacienteService {
       codigo = CodeGenerator.generarCodigo("P");
     } while (pacienteRepository.existsByCodigo(codigo));
 
-    pacienteRepository.save(PacienteMapper.buildPaciente(persona, codigo));
+    Paciente nuevoPaciente = pacienteRepository.save(PacienteMapper.buildPaciente(persona, codigo));
+
+    return PacienteMapper.mapPatient(persona, nuevoPaciente);
   }
 
   public GetPatientResponse getByDni(String dni) {
     Persona persona = personaService.getByDni(dni);
 
-    if (!pacienteRepository.existsByPersona(persona.getId())) {
-      throw new NotFoundException("No se encontró paciente con el dni: "+dni);
-    }
+    Paciente paciente = pacienteRepository.findById(persona.getId())
+            .orElseThrow(() -> new NotFoundException("No se encontró paciente con el dni: " + dni));
 
-    return PacienteMapper.mapPatient(persona);
+    return PacienteMapper.mapPatient(persona, paciente);
   }
 }

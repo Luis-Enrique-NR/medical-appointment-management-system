@@ -504,10 +504,11 @@ class DisponibilidadServiceTest {
 
     @Test
     void listPendingProposals_LP1_sinPropuestas_shouldReturnEmptyList() {
-        when(propuestaDisponibilidadRepository.findByEstadoWithDetails(EstadoPropuesta.PENDIENTE.name()))
+        when(propuestaDisponibilidadRepository.findByEstadoAndEspecialidadWithDetails(
+                EstadoPropuesta.PENDIENTE.name(), 1))
                 .thenReturn(List.of());
 
-        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals();
+        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals(1);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -534,10 +535,11 @@ class DisponibilidadServiceTest {
                 .asignaciones(List.of(ab1, ab2))
                 .build();
 
-        when(propuestaDisponibilidadRepository.findByEstadoWithDetails(EstadoPropuesta.PENDIENTE.name()))
+        when(propuestaDisponibilidadRepository.findByEstadoAndEspecialidadWithDetails(
+                EstadoPropuesta.PENDIENTE.name(), 1))
                 .thenReturn(List.of(propuesta));
 
-        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals();
+        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals(1);
 
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -573,10 +575,11 @@ class DisponibilidadServiceTest {
                 .id(2).medico(medico2).estado(EstadoPropuesta.PENDIENTE.name())
                 .asignaciones(List.of(ab)).build();
 
-        when(propuestaDisponibilidadRepository.findByEstadoWithDetails(EstadoPropuesta.PENDIENTE.name()))
+        when(propuestaDisponibilidadRepository.findByEstadoAndEspecialidadWithDetails(
+                EstadoPropuesta.PENDIENTE.name(), 1))
                 .thenReturn(List.of(p1, p2));
 
-        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals();
+        List<PropuestaDisponibilidadResponse> result = disponibilidadService.listPendingProposals(1);
 
         assertNotNull(result);
         assertEquals(2, result.size());

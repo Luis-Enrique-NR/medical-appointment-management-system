@@ -9,8 +9,8 @@ import java.util.UUID;
 @Data
 public class UpdateCitaRequest {
   private UUID idPaciente;
-  @NotNull(message = "El ID del bloque horario es obligatorio")
-  private Integer idAsignacionBloqueActual;
+  @NotNull(message = "El ID de la cita es obligatorio")
+  private UUID idCita;
 
   private Integer idAsignacionBloqueNuevo;
 

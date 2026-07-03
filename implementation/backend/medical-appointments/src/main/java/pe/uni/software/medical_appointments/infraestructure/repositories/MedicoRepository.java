@@ -17,4 +17,6 @@ public interface MedicoRepository extends JpaRepository<Medico, UUID> {
           "JOIN FETCH p.usuario u " +
           "WHERE u.correo = :correo")
   Optional<Medico> getByCorreo(@Param("correo") String correo);
+
+  Optional<Medico> findByPersonaUsuarioId(UUID idUsuario);
 }
