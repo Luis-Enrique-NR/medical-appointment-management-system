@@ -9,6 +9,7 @@ import pe.uni.software.medical_appointments.application.dtos.paciente.request.Re
 import pe.uni.software.medical_appointments.application.mappers.PersonaMapper;
 import pe.uni.software.medical_appointments.domain.entities.Persona;
 import pe.uni.software.medical_appointments.domain.entities.Usuario;
+import pe.uni.software.medical_appointments.domain.enums.RolUsuario;
 import pe.uni.software.medical_appointments.exception.ConflictException;
 import pe.uni.software.medical_appointments.exception.ForbiddenException;
 import pe.uni.software.medical_appointments.exception.NotFoundException;
@@ -39,7 +40,7 @@ public class PersonaService {
     Usuario usuarioAsociado = null;
 
     // 4. Lógica de negocio condicional
-    if ("PACIENTE".equalsIgnoreCase(nombreRol)) {
+    if (RolUsuario.PACIENTE.toString().equalsIgnoreCase(nombreRol)) {
       // VALIDACIÓN PACIENTE: 1 Persona - 1 Usuario - 1 DNI
       if (personaRepository.existsByDni(request.getDni())) {
         throw new ConflictException("Ya existe una persona registrada con el DNI " + request.getDni());
@@ -52,7 +53,7 @@ public class PersonaService {
       // El paciente se vincula a sí mismo obligatoriamente
       usuarioAsociado = usuarioAutenticado;
 
-    } else if ("SECRETARIA ADMINISTRATIVA".equalsIgnoreCase(nombreRol)) {
+    } else if (RolUsuario.SECRETARIA_ADMINISTRATIVA.toString().equalsIgnoreCase(nombreRol)) {
       // VALIDACIÓN SECRETARIA: Solo evita DNI duplicado, no se asocia a ningún usuario
       if (personaRepository.existsByDni(request.getDni())) {
         throw new ConflictException("No se puede registrar: Ya existe una persona con el DNI " + request.getDni());
