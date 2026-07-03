@@ -15,6 +15,7 @@ import { MyAgenda } from "@/components/doctor/MyAgenda";
 import { RegisterAvailability } from "@/components/doctor/RegisterAvailability";
 import { AvailabilityHistory } from "@/components/doctor/AvailabilityHistory";
 import { UserProfile } from "@/components/shared/UserProfile";
+import { CompleteRegistration } from "@/components/patient/CompleteRegistration";
 import type { Screen } from "@/lib/types";
 
 const DEFAULT_SCREENS: Record<string, Screen> = {
@@ -30,6 +31,10 @@ function HomeContent() {
   if (loading) return null;
   if (!user) return <LoginScreen />;
 
+  if (user.role === "patient" && localStorage.getItem("pendingProfile")) {
+    return <CompleteRegistration onComplete={() => window.location.reload()} />;
+  }
+
   const renderScreen = () => {
     switch (currentScreen) {
       case "book-appointment": return <BookAppointment userName={user.userName} />;
@@ -43,6 +48,7 @@ function HomeContent() {
       case "register-availability": return <RegisterAvailability />;
       case "availability-history": return <AvailabilityHistory />;
       case "profile": return <UserProfile role={user.role} />;
+      case "complete-registration": return <CompleteRegistration onComplete={() => window.location.reload()} />;
       default: return null;
     }
   };

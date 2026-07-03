@@ -18,7 +18,8 @@ export type Screen =
   | "my-agenda"
   | "register-availability"
   | "availability-history"
-  | "notifications";
+  | "notifications"
+  | "complete-registration";
 
 export type AppointmentStatus =
   | "Agendada"
