@@ -24,7 +24,7 @@ const DEFAULT_SCREENS: Record<string, Screen> = {
 };
 
 function HomeContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("my-appointments");
 
   if (loading) return null;
@@ -53,10 +53,7 @@ function HomeContent() {
       userName={user.userName}
       currentScreen={currentScreen}
       onNavigate={setCurrentScreen}
-      onLogout={() => {
-        localStorage.removeItem("token");
-        window.location.reload();
-      }}
+      onLogout={logout}
     >
       {renderScreen()}
     </Layout>

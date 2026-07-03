@@ -1,5 +1,11 @@
 export type Role = "patient" | "secretary" | "doctor";
 
+export const AUTHORITY_ROLE_MAP: Record<string, Role> = {
+  "ROLE_SECRETARIA ADMINISTRATIVA": "secretary",
+  "ROLE_MEDICO ESPECIALISTA": "doctor",
+  "ROLE_PACIENTE": "patient",
+};
+
 export type Screen =
   | "book-appointment"
   | "my-appointments"

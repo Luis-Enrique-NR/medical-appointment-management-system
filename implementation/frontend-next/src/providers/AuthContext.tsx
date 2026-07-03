@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { authService } from "@/services/auth";
 import type { Role } from "@/lib/types";
+import { AUTHORITY_ROLE_MAP } from "@/lib/types";
 
 interface User {
   role: Role;
@@ -27,23 +28,24 @@ function parseJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-function mapRolToRole(idRol: number): Role {
-  if (idRol === 1) return "secretary";
-  if (idRol === 2) return "doctor";
-  return "patient";
-}
-
 function extractUser(token: string): User | null {
   const payload = parseJwtPayload(token);
   if (!payload) return null;
-  const idRol = (payload.idRol ?? payload.rol ?? 0) as number;
-  const correo = (payload.sub ?? payload.correo ?? "") as string;
-  const nombre = (payload.nombre ?? payload.sub ?? "") as string;
-  return {
-    role: mapRolToRole(idRol),
-    userName: nombre || correo,
-    email: correo,
-  };
+
+  const exp = payload.exp as number | undefined;
+  if (exp && exp * 1000 < Date.now()) {
+    localStorage.removeItem("token");
+    return null;
+  }
+
+  const authorities = payload.authorities as string[] | undefined;
+  const authority = authorities?.[0] ?? "";
+  const role: Role = AUTHORITY_ROLE_MAP[authority] ?? "patient";
+
+  const email = (payload.sub ?? "") as string;
+  const userName = (payload.nombre ?? payload.sub ?? "") as string;
+
+  return { role, userName, email };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
