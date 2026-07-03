@@ -13,15 +13,11 @@ public class CorsConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/v1/**")
-                        // Cambiado a allowedOriginPatterns para soportar comodines con credentials(true)
-                        .allowedOriginPatterns(
-                                "https://medical-appoint*.vercel.app", // Cubre tanto medical-appoint- como medical-appointment-
-                                "http://localhost:5173"
-                        )
+                registry.addMapping("/**") // Aplica a TODOS los endpoints de la app
+                        .allowedOriginPatterns("*") // Permite cualquier origen (de cualquier dominio)
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                        .allowedHeaders("*")
-                        .allowCredentials(true);
+                        .allowedHeaders("*") // Permite cualquier header
+                        .allowCredentials(true); // Mantiene el soporte para cookies/tokens si los usas
             }
         };
     }
