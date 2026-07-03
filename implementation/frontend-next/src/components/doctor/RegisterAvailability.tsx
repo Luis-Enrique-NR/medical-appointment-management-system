@@ -217,7 +217,7 @@ export function RegisterAvailability() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowConfirm(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button disabled={submitting} onClick={async () => { setSubmitting(true); try { const rangos = Object.entries(selections).map(([dia, times]) => ({ dia, horaInicio: times[0], horaFin: times[times.length - 1] })); await disponibilidadService.proponer(rangos); setShowConfirm(false); setSubmitted(true); } catch { setSubmitting(false); } }}
+              <button disabled={submitting} onClick={async () => { setSubmitting(true); try { const rangos = Object.entries(selections).map(([dia, times]) => { const dayIdx = DAY_NAMES.indexOf(dia); const dateStr = dayIdx >= 0 ? toDateStr(weekDays[dayIdx]) : dia; return { dia: dateStr, horaInicio: times[0], horaFin: times[times.length - 1] }; }); await disponibilidadService.proponer(rangos); setShowConfirm(false); setSubmitted(true); } catch { setSubmitting(false); } }}
                 className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] disabled:opacity-60 flex items-center justify-center gap-2">{submitting && <Loader2 size={16} className="animate-spin" />}Confirmar</button>
             </div>
           </div>
