@@ -12,7 +12,6 @@ import pe.uni.software.medical_appointments.domain.entities.Usuario;
 import pe.uni.software.medical_appointments.exception.ConflictException;
 import pe.uni.software.medical_appointments.exception.ForbiddenException;
 import pe.uni.software.medical_appointments.exception.NotFoundException;
-import pe.uni.software.medical_appointments.infraestructure.repositories.PacienteRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.PersonaRepository;
 import pe.uni.software.medical_appointments.infraestructure.repositories.UsuarioRepository;
 
