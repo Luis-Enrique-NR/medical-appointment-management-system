@@ -1,17 +1,11 @@
 import { api } from "@/api/client";
 
-interface AuthResponse {
-  message: string;
-  codigo: string;
-  data: { token: string } | { correo: string; habilitado: boolean; token: string };
-}
-
 export const authService = {
   login: (correo: string, password: string) =>
-    api.post<AuthResponse>("/auth/pub/login", { correo, password }),
+    api.post<{ message: string; codigo: string; data: { token: string } }>("/auth/pub/login", { correo, password }),
 
   register: (correo: string, password: string) =>
-    api.post<AuthResponse>("/auth/pub/register", { correo, password }),
+    api.post<{ message: string; codigo: string; data: { correo: string; habilitado: boolean; token: string } }>("/auth/pub/register", { correo, password }),
 
   changePassword: (oldPassword: string, newPassword: string) =>
     api.patch<{ message: string; codigo: string; data: null }>("/auth/password", { oldPassword, newPassword }),
