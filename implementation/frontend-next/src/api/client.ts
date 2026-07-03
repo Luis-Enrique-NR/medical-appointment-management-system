@@ -1,4 +1,4 @@
-const BASE_URL = "https://medical-appointment-management-system.orender.com/api/v1";
+const BASE_URL = "https://medical-appointment-management-system.onrender.com/api/v1";
 
 export class ApiError extends Error {
   constructor(public response: { message: string; codigo: string; data?: unknown }) {
