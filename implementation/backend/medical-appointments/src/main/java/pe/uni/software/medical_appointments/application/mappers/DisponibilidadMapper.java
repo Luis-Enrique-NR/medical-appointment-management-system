@@ -5,7 +5,6 @@ import pe.uni.software.medical_appointments.application.dtos.disponibilidad.resp
 import pe.uni.software.medical_appointments.application.dtos.disponibilidad.response.PropuestaDisponibilidadResponse;
 import pe.uni.software.medical_appointments.domain.entities.AsignacionBloque;
 import pe.uni.software.medical_appointments.domain.entities.BloqueHorario;
-import pe.uni.software.medical_appointments.domain.entities.Consultorio;
 import pe.uni.software.medical_appointments.domain.entities.Medico;
 import pe.uni.software.medical_appointments.domain.entities.PropuestaDisponibilidad;
 import pe.uni.software.medical_appointments.domain.enums.EstadoPropuesta;

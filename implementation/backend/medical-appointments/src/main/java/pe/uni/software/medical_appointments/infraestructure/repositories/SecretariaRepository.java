@@ -17,4 +17,7 @@ public interface SecretariaRepository extends JpaRepository<Secretaria, UUID> {
           "JOIN FETCH p.usuario u " +
           "WHERE u.correo = :correo")
   Optional<Secretaria> getByCorreo(@Param("correo") String correo);
+
+  @Query("SELECT s FROM Secretaria s JOIN s.persona per JOIN per.usuario u WHERE u.id = :usuarioId")
+  Optional<Secretaria> findByUsuarioId(@Param("usuarioId") UUID usuarioId);
 }
