@@ -14,6 +14,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -70,13 +71,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
   }, []);
 
+  const register = useCallback(async (correo: string, password: string) => {
+    const res = await authService.register(correo, password);
+    const token = res.data.token;
+    localStorage.setItem("token", token);
+    const u = extractUser(token);
+    if (!u) throw new Error("No se pudo extraer la información del usuario");
+    setUser(u);
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem("token");
+    localStorage.removeItem("pendingProfile");
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
