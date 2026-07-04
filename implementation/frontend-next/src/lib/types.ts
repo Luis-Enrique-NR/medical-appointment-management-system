@@ -1,5 +1,11 @@
 export type Role = "patient" | "secretary" | "doctor";
 
+export const AUTHORITY_ROLE_MAP: Record<string, Role> = {
+  "ROLE_SECRETARIA ADMINISTRATIVA": "secretary",
+  "ROLE_MEDICO ESPECIALISTA": "doctor",
+  "ROLE_PACIENTE": "patient",
+};
+
 export type Screen =
   | "book-appointment"
   | "my-appointments"
@@ -12,7 +18,8 @@ export type Screen =
   | "my-agenda"
   | "register-availability"
   | "availability-history"
-  | "notifications";
+  | "notifications"
+  | "complete-registration";
 
 export type AppointmentStatus =
   | "Agendada"
@@ -23,7 +30,11 @@ export type AppointmentStatus =
   | "Rechazado"
   | "Disponible"
   | "Ocupado"
-  | "Aprobada";
+  | "Aprobada"
+  | "PROGRAMADO"
+  | "ATENDIDO"
+  | "CANCELADO"
+  | "REPROGRAMADO";
 
 export interface Appointment {
   id: string;

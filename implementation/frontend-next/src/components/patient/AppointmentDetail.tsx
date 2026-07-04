@@ -1,36 +1,51 @@
 "use client";
-import { useState } from "react";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Appointment } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
+import { citasService } from "@/services/citas";
 
-const SAMPLE: Appointment = {
-  id: "1", code: "CLF-203845", doctor: "Dra. Carmen López", specialty: "Ginecología",
-  date: "2026-06-15", time: "10:00", consultorio: "Consultorio 2", status: "Agendada", createdAt: "2026-06-07",
-};
-
-const PAST: Appointment = {
-  id: "3", code: "CLF-112030", doctor: "Dra. Patricia Vega", specialty: "Ginecología",
-  date: "2026-05-10", time: "09:00", consultorio: "Consultorio 1", status: "Atendida", createdAt: "2026-04-28",
-};
+function mapCita(c: any): Appointment {
+  return {
+    id: c.idCita,
+    code: c.codigoCita,
+    patient: c.paciente,
+    dni: c.dniPaciente,
+    doctor: c.medico,
+    specialty: c.especialidad,
+    date: c.fecha,
+    time: c.hora?.slice(0, 5),
+    consultorio: c.codigoConsultorio,
+    status: c.estadoCita,
+    createdAt: c.fechaCreacion,
+  };
+}
 
 export function AppointmentDetail() {
-  const [showActive, setShowActive] = useState(true);
+  const [appt, setAppt] = useState<Appointment | null>(null);
+  const [loading, setLoading] = useState(true);
   const [cancelReason, setCancelReason] = useState("");
   const [showCancel, setShowCancel] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
-  const [cancelled, setCancelled] = useState(false);
-  const appt = cancelled ? { ...SAMPLE, status: "Cancelada" as const } : showActive ? SAMPLE : PAST;
+
+  useEffect(() => {
+    setLoading(true);
+    citasService.getMisProximas()
+      .then(res => {
+        const data = (res.data ?? []) as any[];
+        setAppt(data.length > 0 ? mapCita(data[0]) : null);
+      })
+      .catch(() => setAppt(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="max-w-2xl mx-auto py-16 text-center"><Loader2 size={32} className="mx-auto text-[#006FC1] animate-spin" /></div>;
+  if (!appt) return <div className="max-w-2xl mx-auto py-16 text-center"><p className="text-gray-500">No hay citas disponibles.</p></div>;
 
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-[#05576D] mb-6 text-2xl font-bold">Detalle de Cita</h1>
-
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">
-        <button onClick={() => { setShowActive(true); setCancelled(false); }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${showActive ? "bg-white text-[#05576D] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>Cita Activa</button>
-        <button onClick={() => setShowActive(false)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${!showActive ? "bg-white text-[#05576D] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>Cita Pasada</button>
-      </div>
 
       {successMsg && (
         <div className="mb-4 flex items-center gap-2 bg-[#0AC0AB]/15 border border-[#0AC0AB]/40 text-[#059688] px-4 py-3 rounded-lg text-sm">
@@ -53,7 +68,7 @@ export function AppointmentDetail() {
         {appt.status === "Agendada" ? (
           <div className="flex gap-3 pt-4 border-t border-gray-100">
             <button onClick={() => setShowCancel(true)} className="flex-1 py-2.5 border border-[#FF82B6] text-[#d45c8b] rounded-lg text-sm font-medium hover:bg-[#FF82B6]/10 transition-colors">Cancelar Cita</button>
-            <button className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] transition-colors">Reprogramar</button>
+            <button onClick={async () => { try { setSuccessMsg("Función de reprogramación — seleccione un nuevo horario en Mis Citas."); setTimeout(() => setSuccessMsg(""), 4000); } catch {} }} className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] transition-colors">Reprogramar</button>
           </div>
         ) : (
           <p className="text-sm text-gray-500 text-center pt-4 border-t border-gray-100 italic">
@@ -77,7 +92,7 @@ export function AppointmentDetail() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowCancel(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">Volver</button>
-              <button onClick={() => { setShowCancel(false); setCancelled(true); setSuccessMsg("Cita cancelada exitosamente."); setTimeout(() => setSuccessMsg(""), 4000); }}
+              <button onClick={async () => { try { await citasService.actualizar({ idCita: appt.id, accion: "CANCELAR", motivoActualizacion: cancelReason || "Cancelado por el paciente" }); setShowCancel(false); setSuccessMsg("Cita cancelada exitosamente."); } catch { setSuccessMsg("Error al cancelar."); } setTimeout(() => setSuccessMsg(""), 4000); }}
                 className="flex-1 py-2.5 bg-[#FF82B6] text-white rounded-lg text-sm font-medium hover:bg-[#e06aa0] transition-colors">Confirmar Cancelación</button>
             </div>
           </div>

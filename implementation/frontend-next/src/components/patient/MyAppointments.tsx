@@ -1,19 +1,26 @@
 "use client";
-import { useState, useMemo } from "react";
-import { Calendar, Clock, Eye, X, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Calendar, Clock, Eye, X, RefreshCw, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
 import { formatDate, DAYS_SHORT, getMonthYear } from "@/lib/utils";
+import { citasService } from "@/services/citas";
 
-const UPCOMING: Appointment[] = [
-  { id: "1", code: "CLF-203845", doctor: "Dra. Carmen López", specialty: "Ginecología", date: "2026-06-15", time: "10:00", consultorio: "Consultorio 2", status: "Agendada", createdAt: "2026-06-07" },
-  { id: "2", code: "CLF-398201", doctor: "Dr. Andrés Castro", specialty: "Fertilidad", date: "2026-06-22", time: "14:30", consultorio: "Consultorio 5", status: "Reprogramada", createdAt: "2026-06-01" },
-];
-
-const HISTORY: Appointment[] = [
-  { id: "3", code: "CLF-112030", doctor: "Dra. Patricia Vega", specialty: "Ginecología", date: "2026-05-10", time: "09:00", consultorio: "Consultorio 1", status: "Atendida", createdAt: "2026-04-28" },
-  { id: "4", code: "CLF-098765", doctor: "Dr. Miguel Torres", specialty: "Obstetricia", date: "2026-04-22", time: "11:00", consultorio: "Consultorio 3", status: "Cancelada", createdAt: "2026-04-01" },
-];
+function mapCitaToAppointment(c: any): Appointment {
+  return {
+    id: c.idCita,
+    code: c.codigoCita,
+    patient: c.paciente,
+    dni: c.dniPaciente,
+    doctor: c.medico,
+    specialty: c.especialidad,
+    date: c.fecha,
+    time: c.hora?.slice(0, 5),
+    consultorio: c.codigoConsultorio,
+    status: c.estadoCita,
+    createdAt: c.fechaCreacion,
+  };
+}
 
 const TIME_SLOTS: string[] = [];
 for (let h = 8; h <= 17; h++) {
@@ -190,20 +197,48 @@ function RescheduleModal({ appointment, onClose, onConfirm }: { appointment: App
 
 export function MyAppointments() {
   const [tab, setTab] = useState<"upcoming" | "history">("upcoming");
-  const [appointments, setAppointments] = useState<Appointment[]>(UPCOMING);
-  const [history] = useState<Appointment[]>(HISTORY);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [history, setHistory] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [detailFor, setDetailFor] = useState<Appointment | null>(null);
   const [cancelFor, setCancelFor] = useState<Appointment | null>(null);
   const [rescheduleFor, setRescheduleFor] = useState<Appointment | null>(null);
   const [successMsg, setSuccessMsg] = useState("");
 
+  useEffect(() => {
+    setLoading(true);
+    if (tab === "upcoming") {
+      citasService.getMisProximas()
+        .then(res => setAppointments((res.data ?? []).map(mapCitaToAppointment)))
+        .catch(() => setAppointments([]))
+        .finally(() => setLoading(false));
+    } else {
+      citasService.getMiHistorial(0)
+        .then(res => setHistory((res.data?.content ?? []).map(mapCitaToAppointment)))
+        .catch(() => setHistory([]))
+        .finally(() => setLoading(false));
+    }
+  }, [tab]);
+
   const list = tab === "upcoming" ? appointments : history;
 
-  const handleReschedule = (id: string, data: { date: string; time: string; reason: string }) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, date: data.date, time: data.time, status: "Reprogramada" as AppointmentStatus } : a));
-    setRescheduleFor(null);
-    setSuccessMsg("Cita reprogramada exitosamente.");
-    setTimeout(() => setSuccessMsg(""), 4000);
+  const handleReschedule = async (id: string, data: { date: string; time: string; reason: string }) => {
+    try {
+      const appt = appointments.find(a => a.id === id);
+      if (!appt) return;
+      await citasService.actualizar({
+        idCita: id,
+        accion: "REPROGRAMAR",
+        motivoActualizacion: data.reason,
+        idAsignacionBloqueNuevo: parseInt(data.time),
+      });
+      setRescheduleFor(null);
+      setSuccessMsg("Cita reprogramada exitosamente.");
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch {
+      setSuccessMsg("Error al reprogramar la cita.");
+      setTimeout(() => setSuccessMsg(""), 4000);
+    }
   };
 
   return (
@@ -222,7 +257,9 @@ export function MyAppointments() {
           </button>
         ))}
       </div>
-      {list.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-16 text-center"><Loader2 size={32} className="mx-auto text-[#006FC1] animate-spin" /></div>
+      ) : list.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-16 text-center">
           <Calendar size={44} className="mx-auto text-[#0AC0AB] mb-3" />
           <p className="text-gray-500">No tiene citas programadas aún.</p>
@@ -267,7 +304,7 @@ export function MyAppointments() {
         </div>
       )}
       {detailFor && <DetailModal appointment={detailFor} onClose={() => setDetailFor(null)} onReschedule={(a) => setRescheduleFor(a)} />}
-      {cancelFor && <CancelModal appointment={cancelFor} onClose={() => setCancelFor(null)} onConfirm={(id) => { setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelada" as AppointmentStatus } : a)); setCancelFor(null); setSuccessMsg("La cita ha sido cancelada exitosamente."); setTimeout(() => setSuccessMsg(""), 4000); }} />}
+      {cancelFor && <CancelModal appointment={cancelFor} onClose={() => setCancelFor(null)} onConfirm={async (id) => { try { await citasService.actualizar({ idCita: id, accion: "CANCELAR", motivoActualizacion: "Cancelado por el paciente" }); setAppointments(prev => prev.filter(a => a.id !== id)); setCancelFor(null); setSuccessMsg("La cita ha sido cancelada exitosamente."); } catch { setSuccessMsg("Error al cancelar la cita."); } setTimeout(() => setSuccessMsg(""), 4000); }} />}
       {rescheduleFor && <RescheduleModal appointment={rescheduleFor} onClose={() => setRescheduleFor(null)} onConfirm={handleReschedule} />}
     </div>
   );

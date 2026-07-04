@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { ChevronRight, ChevronLeft, CheckCircle2, Baby, Heart, Stethoscope, Calendar, Loader2 } from "lucide-react";
+<<<<<<< HEAD
 import { getMonthYear, DAYS_SHORT, toDateStr } from "@/lib/utils";
 import { apiGet } from "@/lib/api";
 import type { Especialidad, Medico, Horario } from "@/lib/types";
@@ -10,14 +11,38 @@ function specialtyIcon(name: string) {
   if (n.includes("ginecolog")) return <Heart size={28} className="text-[#FF82B6]" />;
   if (n.includes("obstetric")) return <Baby size={28} className="text-[#0AC0AB]" />;
   return <Stethoscope size={28} className="text-[#006FC1]" />;
+=======
+import { getMonthYear, DAYS_SHORT } from "@/lib/utils";
+import { especialidadesService } from "@/services/especialidades";
+import { medicosService } from "@/services/medicos";
+import { citasService } from "@/services/citas";
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  default: <Stethoscope size={28} className="text-[#006FC1]" />,
+};
+
+const TIME_SLOTS: string[] = [];
+for (let h = 8; h <= 17; h++) {
+  for (const m of [0, 30]) {
+    TIME_SLOTS.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  }
+>>>>>>> 358a361ba646bfc2b0be96a83f276331cd83ccd5
 }
 
 export function BookAppointment({ userName }: { userName: string }) {
   const [step, setStep] = useState(1);
+<<<<<<< HEAD
   const [specialty, setSpecialty] = useState<number | null>(null);
+=======
+  const [specialties, setSpecialties] = useState<any[]>([]);
+  const [specialty, setSpecialty] = useState<number | null>(null);
+  const [doctors, setDoctors] = useState<any[]>([]);
+>>>>>>> 358a361ba646bfc2b0be96a83f276331cd83ccd5
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
+  const [horarios, setHorarios] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+<<<<<<< HEAD
 
   const [especialidades, setEspecialidades] = useState<Especialidad[]>([]);
   const [doctores, setDoctores] = useState<Medico[]>([]);
@@ -98,6 +123,83 @@ export function BookAppointment({ userName }: { userName: string }) {
       .filter(h => h.fecha === dateStr)
       .map(h => ({ time: h.horaInicio.slice(0, 5), available: true }));
   }, [horarios, selectedDate]);
+=======
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [appointmentCode, setAppointmentCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    especialidadesService.getAll().then(res => setSpecialties(res.data ?? [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (specialty !== null) {
+      setLoading(true);
+      setSelectedDoctor(null);
+      setSelectedDate(null);
+      setSelectedTime(null);
+      especialidadesService.getMedicos(specialty)
+        .then(res => setDoctors(res.data ?? []))
+        .catch(() => setDoctors([]))
+        .finally(() => setLoading(false));
+    }
+  }, [specialty]);
+
+  useEffect(() => {
+    if (selectedDoctor) {
+      setLoading(true);
+      setSelectedDate(null);
+      setSelectedTime(null);
+      medicosService.getHorarios(selectedDoctor)
+        .then(res => setHorarios(res.data ?? []))
+        .catch(() => setHorarios([]))
+        .finally(() => setLoading(false));
+    }
+  }, [selectedDoctor]);
+
+  const doctorObj = useMemo(() => doctors.find(d => d.idMedico === selectedDoctor) ?? null, [selectedDoctor, doctors]);
+
+  const calendarDays = useMemo(() => {
+    if (!horarios.length) return [];
+    const today = new Date();
+    const daysMap: Record<string, { date: Date; available: boolean; disabled: boolean }> = {};
+    for (const h of horarios) {
+      const [d, m, y] = h.fecha.split("-");
+      const dt = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+      const key = dt.toDateString();
+      daysMap[key] = { date: dt, available: true, disabled: false };
+    }
+    const result: { date: Date; available: boolean; disabled: boolean }[] = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const key = d.toDateString();
+      if (daysMap[key]) {
+        result.push(daysMap[key]);
+      } else {
+        result.push({ date: d, available: false, disabled: true });
+      }
+    }
+    return result;
+  }, [horarios]);
+
+  const doctorTimeSlots = useMemo(() => {
+    if (!selectedDate || !horarios.length) return [];
+    const dd = String(selectedDate.getDate()).padStart(2, "0");
+    const mm = String(selectedDate.getMonth() + 1).padStart(2, "0");
+    const yyyy = selectedDate.getFullYear();
+    const dateStr = `${dd}-${mm}-${yyyy}`;
+    const dayHorarios = horarios.filter((h: any) => h.fecha === dateStr);
+    return dayHorarios.map((h: any) => ({
+      time: h.horaInicio?.slice(0, 5),
+      idAsignacionBloque: h.idAsignacionBloque ?? h.idBloque,
+      available: true,
+    }));
+  }, [selectedDate, horarios]);
+
+  const currentMonth = selectedDate || new Date();
+>>>>>>> 358a361ba646bfc2b0be96a83f276331cd83ccd5
 
   const canNext = () => {
     if (step === 1) return specialty !== null;
@@ -106,6 +208,38 @@ export function BookAppointment({ userName }: { userName: string }) {
     return false;
   };
 
+<<<<<<< HEAD
+=======
+  const handleReset = () => {
+    setStep(1);
+    setSpecialty(null);
+    setSelectedDoctor(null);
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setShowSuccess(false);
+  };
+
+  if (showSuccess) {
+    return (
+      <div className="max-w-md mx-auto mt-16 text-center">
+        <div className="bg-white rounded-2xl shadow-lg p-10 border border-gray-100">
+          <div className="w-16 h-16 bg-[#0AC0AB]/15 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={36} className="text-[#0AC0AB]" /></div>
+          <h2 className="text-[#05576D] mb-2 text-xl font-bold">¡Cita Confirmada!</h2>
+          <p className="text-gray-500 mb-4 text-sm">Su cita ha sido agendada exitosamente</p>
+          <div className="bg-gray-50 rounded-xl p-4 mb-6"><p className="text-xs text-gray-500 mb-1">Código</p><p className="text-[#006FC1] font-bold text-xl">{appointmentCode}</p></div>
+          <div className="text-sm text-gray-600 space-y-1.5 mb-6 text-left">
+            <Row label="Especialidad" value={specialties.find(s=>s.idEspecialidad===specialty)?.nombre ?? ""} />
+            <Row label="Doctor" value={doctorObj?.nombre ?? ""} />
+            <Row label="Fecha" value={selectedDate?.toLocaleDateString("es-PE", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) ?? ""} />
+            <Row label="Hora" value={selectedTime ?? ""} />
+          </div>
+          <button onClick={handleReset} className="w-full bg-[#006FC1] text-white py-2.5 rounded-lg font-medium hover:bg-[#005a9e] transition-colors text-sm">Agendar otra cita</button>
+        </div>
+      </div>
+    );
+  }
+
+>>>>>>> 358a361ba646bfc2b0be96a83f276331cd83ccd5
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-[#05576D] mb-6 text-2xl font-bold">Reservar una Cita</h1>
@@ -128,6 +262,7 @@ export function BookAppointment({ userName }: { userName: string }) {
           <div>
             <h2 className="text-[#05576D] text-lg font-semibold mb-1">Seleccione una Especialidad</h2>
             <p className="text-gray-500 mb-5 text-sm">Elija la especialidad médica que necesita</p>
+<<<<<<< HEAD
             {loadingEsp ? (
               <div className="flex items-center justify-center py-12 text-gray-500 text-sm gap-2">
                 <Loader2 size={18} className="animate-spin" /> Cargando especialidades...
@@ -145,12 +280,26 @@ export function BookAppointment({ userName }: { userName: string }) {
                 ))}
               </div>
             )}
+=======
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {specialties.map(sp => (
+                <button key={sp.idEspecialidad} onClick={() => { setSpecialty(sp.idEspecialidad); setSelectedDoctor(null); setSelectedDate(null); setSelectedTime(null); }}
+                  className={`p-5 rounded-xl border-2 text-left transition-all ${specialty === sp.idEspecialidad ? "border-[#006FC1] bg-[#006FC1]/5" : "border-gray-200 hover:border-[#0F96CB]/50 hover:bg-gray-50"}`}>
+                  <div className="mb-3"><Stethoscope size={28} className="text-[#006FC1]" /></div>
+                  <p className="font-semibold text-[#05576D] text-sm">{sp.nombre}</p>
+                  <p className="text-gray-500 mt-1 text-xs">{sp.descripcion}</p>
+                  {specialty === sp.idEspecialidad && <div className="mt-3 flex items-center gap-1 text-[#006FC1] text-xs"><CheckCircle2 size={14} /> <span>Seleccionada</span></div>}
+                </button>
+              ))}
+            </div>
+>>>>>>> 358a361ba646bfc2b0be96a83f276331cd83ccd5
           </div>
         )}
 
         {step === 2 && (
           <div>
             <h2 className="text-[#05576D] text-lg font-semibold mb-4">Seleccione un Doctor</h2>
+<<<<<<< HEAD
             {loadingDocs ? (
               <div className="flex items-center justify-center py-12 text-gray-500 text-sm gap-2">
                 <Loader2 size={18} className="animate-spin" /> Cargando doctores...
@@ -160,6 +309,15 @@ export function BookAppointment({ userName }: { userName: string }) {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {doctores.map(doc => (
+=======
+            {loading ? (
+              <div className="py-8 text-center"><Loader2 size={24} className="mx-auto text-[#006FC1] animate-spin" /></div>
+            ) : doctors.length === 0 ? (
+              <p className="text-gray-500 text-sm">No hay doctores disponibles para esta especialidad.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {doctors.map(doc => (
+>>>>>>> 358a361ba646bfc2b0be96a83f276331cd83ccd5
                   <button key={doc.idMedico} onClick={() => { setSelectedDoctor(doc.idMedico); setSelectedDate(null); setSelectedTime(null); }}
                     className={`p-5 rounded-xl border-2 text-left transition-all ${selectedDoctor === doc.idMedico ? "border-[#006FC1] bg-[#006FC1]/5 ring-2 ring-[#006FC1]/20" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"}`}>
                     <div className="flex items-center gap-4">
@@ -168,6 +326,10 @@ export function BookAppointment({ userName }: { userName: string }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-[#05576D] text-sm">{doc.nombre}</p>
+<<<<<<< HEAD
+=======
+                        <p className="text-gray-500 text-xs mt-0.5">{doc.descripcion}</p>
+>>>>>>> 358a361ba646bfc2b0be96a83f276331cd83ccd5
                         {selectedDoctor === doc.idMedico && (
                           <span className="inline-flex items-center mt-2 text-xs text-[#006FC1] font-medium">
                             <CheckCircle2 size={12} className="mr-1" /> Seleccionado
@@ -262,7 +424,16 @@ export function BookAppointment({ userName }: { userName: string }) {
               className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#006FC1] text-white hover:bg-[#005a9e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-medium">
               Siguiente <ChevronRight size={16} />
             </button>
+<<<<<<< HEAD
           ) : null}
+=======
+          ) : (
+            <button disabled={!selectedTime || submitting} onClick={async () => { setSubmitting(true); try { const slot = doctorTimeSlots.find(s => s.time === selectedTime); const res = await citasService.crear({ idAsignacionBloque: slot?.idAsignacionBloque ?? 0 }); setAppointmentCode(`CT-${Date.now()}`); setShowSuccess(true); } catch { alert("Error al crear la cita."); } finally { setSubmitting(false); } }}
+              className="px-6 py-2 rounded-lg bg-[#006FC1] text-white hover:bg-[#005a9e] disabled:opacity-60 transition-colors text-sm font-medium flex items-center gap-2">
+              {submitting && <Loader2 size={16} className="animate-spin" />}Confirmar Cita
+            </button>
+          )}
+>>>>>>> 358a361ba646bfc2b0be96a83f276331cd83ccd5
         </div>
       </div>
     </div>

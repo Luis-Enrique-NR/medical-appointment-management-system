@@ -1,31 +1,13 @@
 "use client";
-import { useState, useCallback } from "react";
-import { Search, UserPlus, CheckCircle2, Baby, Heart, Stethoscope, AlertCircle } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { Search, UserPlus, CheckCircle2, Stethoscope, AlertCircle, Loader2 } from "lucide-react";
+import { especialidadesService } from "@/services/especialidades";
+import { pacientesService } from "@/services/pacientes";
+import { citasService } from "@/services/citas";
 
 interface Patient { dni: string; name: string; email: string; phone: string; }
 
 interface FieldErrors { dni?: string; name?: string; email?: string; phone?: string; }
-
-const PATIENTS_DB: Record<string, Patient> = {
-  "47123456": { dni: "47123456", name: "María García Pérez", email: "m.garcia@email.com", phone: "+51 987 654 321" },
-  "38291047": { dni: "38291047", name: "Rosa Mendoza Quispe", email: "r.mendoza@email.com", phone: "+51 976 123 456" },
-  "52841930": { dni: "52841930", name: "Julia Torres Silva", email: "j.torres@email.com", phone: "+51 945 678 901" },
-};
-
-const SPECIALTIES = [
-  { id: "gynecology", name: "Ginecología", icon: <Heart size={22} className="text-[#FF82B6]" /> },
-  { id: "obstetrics", name: "Obstetricia", icon: <Baby size={22} className="text-[#0AC0AB]" /> },
-  { id: "fertility", name: "Fertilidad", icon: <Stethoscope size={22} className="text-[#006FC1]" /> },
-];
-
-const DOCTORS_BY_SPECIALTY: Record<string, string[]> = {
-  gynecology: ["Dra. Carmen López", "Dra. Patricia Vega"],
-  obstetrics: ["Dr. Miguel Torres", "Dra. Sofia Morales"],
-  fertility: ["Dr. Andrés Castro"],
-};
-
-const TIME_SLOTS = ["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00"];
-const OCCUPIED = ["09:00","10:30","14:00","16:00"];
 
 function validateDni(v: string): string | undefined {
   if (!v) return "El DNI es obligatorio.";
@@ -59,16 +41,30 @@ export function AppointmentScheduling() {
   const [dniSearch, setDniSearch] = useState("");
   const [foundPatient, setFoundPatient] = useState<Patient | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [searchingDni, setSearchingDni] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [specialty, setSpecialty] = useState<string | null>(null);
+  const [specialty, setSpecialty] = useState<number | null>(null);
+  const [specialties, setSpecialties] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
   const [doctor, setDoctor] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [slotConflict, setSlotConflict] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [newPatient, setNewPatient] = useState({ dni: "", name: "", email: "", phone: "" });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    especialidadesService.getAll().then(res => setSpecialties(res.data ?? [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (specialty !== null) {
+      especialidadesService.getMedicos(specialty).then(res => setDoctors(res.data ?? [])).catch(() => setDoctors([]));
+    }
+  }, [specialty]);
 
   const validateField = useCallback((field: string, value: string) => {
     const validator = VALIDATORS[field];
@@ -90,14 +86,25 @@ export function AppointmentScheduling() {
     validateField(field, value);
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     const cleaned = dniSearch.trim();
-    const p = PATIENTS_DB[cleaned];
-    if (p) { setFoundPatient(p); setNotFound(false); } else { setFoundPatient(null); setNotFound(true); }
+    if (!cleaned) return;
+    setSearchingDni(true);
+    setFoundPatient(null);
+    setNotFound(false);
+    try {
+      const res = await pacientesService.getByDni(cleaned);
+      const d = res.data;
+      setFoundPatient({ dni: d.dni, name: `${d.nombres} ${d.apellidos}`, email: "", phone: d.telefono });
+    } catch {
+      setNotFound(true);
+    } finally {
+      setSearchingDni(false);
+    }
     setShowNewForm(false);
   };
 
-  const handleSaveNewPatient = () => {
+  const handleSaveNewPatient = async () => {
     const { dni, name, email, phone } = newPatient;
     setTouched({ dni: true, name: true, email: true, phone: true });
 
@@ -114,10 +121,18 @@ export function AppointmentScheduling() {
 
     if (Object.keys(errors).length > 0) return;
 
-    setSelectedPatient({ dni, name, email, phone });
-    setShowNewForm(false);
-    setFieldErrors({});
-    setTouched({});
+    try {
+      const parts = name.trim().split(" ");
+      const nombres = parts.slice(0, -1).join(" ") || parts[0];
+      const apellidos = parts.slice(-1)[0] || "";
+      await pacientesService.register(dni, nombres, apellidos, phone);
+      setSelectedPatient({ dni, name, email, phone });
+      setShowNewForm(false);
+      setFieldErrors({});
+      setTouched({});
+    } catch {
+      setFieldErrors({ dni: "Error al registrar paciente" });
+    }
   };
 
   if (showSuccess) {
@@ -129,7 +144,7 @@ export function AppointmentScheduling() {
           <p className="text-gray-500 mb-4 text-sm">La cita ha sido registrada exitosamente para el paciente.</p>
           <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left space-y-2 text-sm">
             <Row label="Paciente" value={selectedPatient!.name} />
-            <Row label="Especialidad" value={SPECIALTIES.find(s=>s.id===specialty)?.name ?? ""} />
+            <Row label="Especialidad" value={specialties.find(s=>s.idEspecialidad===specialty)?.nombre ?? ""} />
             <Row label="Doctor" value={doctor!} />
             <Row label="Hora" value={selectedTime!} />
           </div>
@@ -219,10 +234,10 @@ export function AppointmentScheduling() {
             <div className="mb-5">
               <label className="block text-sm font-medium text-[#05576D] mb-2">Especialidad <span className="text-[#FF82B6]">*</span></label>
               <div className="grid grid-cols-3 gap-2">
-                {SPECIALTIES.map(sp => (
-                  <button key={sp.id} onClick={() => { setSpecialty(sp.id); setDoctor(null); }}
-                    className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1.5 transition-all ${specialty === sp.id ? "border-[#006FC1] bg-[#006FC1]/5" : "border-gray-200 hover:border-gray-300"}`}>
-                    {sp.icon}<span className="text-xs font-medium text-[#05576D]">{sp.name}</span>
+                {specialties.map(sp => (
+                  <button key={sp.idEspecialidad} onClick={() => { setSpecialty(sp.idEspecialidad); setDoctor(null); }}
+                    className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1.5 transition-all ${specialty === sp.idEspecialidad ? "border-[#006FC1] bg-[#006FC1]/5" : "border-gray-200 hover:border-gray-300"}`}>
+                    <Stethoscope size={22} className="text-[#006FC1]" /><span className="text-xs font-medium text-[#05576D]">{sp.nombre}</span>
                   </button>
                 ))}
               </div>
@@ -233,7 +248,7 @@ export function AppointmentScheduling() {
                 <select value={doctor ?? ""} onChange={e => setDoctor(e.target.value)}
                   className="w-full px-3 py-2.5 border border-[#05576D]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#006FC1]/30">
                   <option value="">Seleccione un doctor</option>
-                  {(DOCTORS_BY_SPECIALTY[specialty] ?? []).map(d => <option key={d} value={d}>{d}</option>)}
+                  {doctors.map(d => <option key={d.idMedico} value={d.idMedico}>{d.nombre}</option>)}
                 </select>
               </div>
             )}
@@ -244,28 +259,27 @@ export function AppointmentScheduling() {
             </div>
             <div className="mb-5">
               <label className="block text-sm font-medium text-[#05576D] mb-2">Horario <span className="text-[#FF82B6]">*</span></label>
-              <div className="grid grid-cols-5 gap-2">
-                {TIME_SLOTS.map(t => {
-                  const occupied = OCCUPIED.includes(t);
-                  return (
-                    <button key={t} disabled={occupied} onClick={() => { if (occupied) setSlotConflict(true); else { setSlotConflict(false); setSelectedTime(t); } }}
-                      className={`py-2 rounded-lg text-xs font-medium transition-colors ${selectedTime === t ? "bg-[#006FC1] text-white" : occupied ? "bg-[#FF82B6]/20 text-gray-400 cursor-not-allowed line-through" : "bg-[#0AC0AB]/20 text-[#05576D] hover:bg-[#0AC0AB]/40"}`}>{t}</button>
-                  );
-                })}
-              </div>
-              {slotConflict && <div className="mt-2 flex items-center gap-1.5 text-[#d45c8b] text-xs"><AlertCircle size={13} /> Este horario ya no está disponible.</div>}
+              {!doctor ? (
+                <p className="text-sm text-gray-400">Seleccione un doctor primero</p>
+              ) : (
+                <div className="grid grid-cols-5 gap-2">
+                  {["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00"].map(t => (
+                    <button key={t} onClick={() => setSelectedTime(t)}
+                      className={`py-2 rounded-lg text-xs font-medium transition-colors ${selectedTime === t ? "bg-[#006FC1] text-white" : "bg-[#0AC0AB]/20 text-[#05576D] hover:bg-[#0AC0AB]/40"}`}>{t}</button>
+                  ))}
+                </div>
+              )}
             </div>
             {selectedPatient && specialty && doctor && selectedTime && (
               <div className="border-t border-gray-100 pt-4">
                 <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Resumen</p>
                   <Row label="Paciente" value={selectedPatient.name} />
-                  <Row label="Especialidad" value={SPECIALTIES.find(s=>s.id===specialty)?.name ?? ""} />
+                  <Row label="Especialidad" value={specialties.find(s=>s.idEspecialidad===specialty)?.nombre ?? ""} />
                   <Row label="Doctor" value={doctor} />
                   <Row label="Hora" value={selectedTime} />
-                  <Row label="Consultorio" value="Consultorio 3" />
                 </div>
-                <button onClick={() => setShowSuccess(true)} className="w-full bg-[#006FC1] text-white py-3 rounded-lg font-semibold hover:bg-[#005a9e] transition-colors">Confirmar Cita</button>
+                <button disabled={submitting} onClick={async () => { setSubmitting(true); try { await citasService.crear({ idAsignacionBloque: parseInt(selectedTime) }); setShowSuccess(true); } catch { alert("Error al crear la cita"); } finally { setSubmitting(false); } }} className="w-full bg-[#006FC1] text-white py-3 rounded-lg font-semibold hover:bg-[#005a9e] disabled:opacity-60 transition-colors flex items-center justify-center gap-2">{submitting && <Loader2 size={18} className="animate-spin" />}Confirmar Cita</button>
               </div>
             )}
           </div>
