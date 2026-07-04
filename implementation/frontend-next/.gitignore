@@ -41,3 +41,11 @@ Thumbs.db
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# =========================================================================
+# 7. CYPRESS (pruebas E2E)
+# =========================================================================
+/cypress/videos/
+/cypress/screenshots/
+/cypress/downloads/
+/cypress/reports/

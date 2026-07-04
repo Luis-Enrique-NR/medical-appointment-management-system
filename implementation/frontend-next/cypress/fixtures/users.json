@@ -1,0 +1,5 @@
+{
+  "patient": { "username": "paciente", "password": "clinifer" },
+  "secretary": { "username": "secretaria", "password": "clinifer" },
+  "doctor": { "username": "medico", "password": "clinifer" }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "clinifer-api-testing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CRUD API REST de citas (CLINIFER) + pruebas de API con Cypress y Playwright",
+  "scripts": {
+    "start": "node server.js",
+    "cypress:run": "cypress run",
+    "playwright:run": "playwright test",
+    "test:api:cy": "start-server-and-test start http://localhost:3000/citas cypress:run",
+    "test:api:pw": "start-server-and-test start http://localhost:3000/citas playwright:run",
+    "test:api:cy:report": "start \"\" cypress/reports/html/index.html",
+    "test:api:pw:report": "playwright show-report playwright-report"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "cypress": "^15.18.0",
+    "cypress-mochawesome-reporter": "^4.0.2",
+    "start-server-and-test": "^3.0.11"
+  }
+}

@@ -10,7 +10,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
+  // Genera SIEMPRE el reporte HTML en playwright-report/ además de la salida
+  // de consola. Con open:"never" no abre el navegador al terminar la corrida.
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+  ],
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
