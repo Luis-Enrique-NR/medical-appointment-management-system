@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { AlertTriangle, CheckCircle2, X, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, X, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { especialidadesService } from "@/services/especialidades";
 import { disponibilidadService } from "@/services/disponibilidad";
 
@@ -13,8 +13,6 @@ for (let h = 7; h <= 21; h++) {
   }
 }
 
-const CLINIC_ROOMS = ["Consultorio 1", "Consultorio 2", "Consultorio 3", "Consultorio 4", "Consultorio 5", "Consultorio 6"];
-
 type SlotStatus = "por_revisar" | "aprobado" | "anulado";
 
 interface SlotInfo {
@@ -23,7 +21,6 @@ interface SlotInfo {
   specialty: string;
   status: SlotStatus;
   conflict: boolean;
-  room: string | null;
 }
 
 export function ManageDoctorAvailability() {
@@ -68,7 +65,6 @@ export function ManageDoctorAvailability() {
             specialty: "",
             status: "por_revisar",
             conflict: false,
-            room: null,
           });
         }
       }
@@ -76,7 +72,37 @@ export function ManageDoctorAvailability() {
     return g;
   }, [proposals]);
 
-  const handleChangeStatus = async (day: string, block: string, index: number, newStatus: SlotStatus, room?: string | null) => {
+  const capacityAlerts = useMemo(() => {
+    const alerts: { day: string; block: string; count: number }[] = [];
+    for (const day of DAYS) {
+      for (const block of TIME_BLOCKS) {
+        const slots = grid[day]?.[block] ?? [];
+        if (slots.length > 6) alerts.push({ day, block, count: slots.length });
+      }
+    }
+    return alerts;
+  }, [grid]);
+
+  const handleBulkUpdate = async (aprobar: boolean) => {
+    const cambios = proposals.flatMap((p: any) =>
+      (p.bloquesHorario ?? []).map((b: any) => ({ idAsignacion: b.idBloque, aprobado: aprobar }))
+    );
+    if (cambios.length === 0) return;
+    try {
+      await disponibilidadService.actualizar(cambios);
+      setSuccessMsg(`Se ${aprobar ? "aprobaron" : "rechazaron"} ${cambios.length} bloque(s).`);
+      setTimeout(() => setSuccessMsg(""), 3000);
+      if (specialty !== null) {
+        const pend = await disponibilidadService.getPendientes(specialty);
+        setProposals(pend.data ?? []);
+      }
+    } catch {
+      setSuccessMsg("Error al procesar la actualización masiva.");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    }
+  };
+
+  const handleChangeStatus = async (day: string, block: string, index: number, newStatus: SlotStatus) => {
     const slot = grid[day]?.[block]?.[index];
     if (!slot) return;
     try {
@@ -119,11 +145,38 @@ export function ManageDoctorAvailability() {
       </div>
       {loading && <div className="flex justify-center py-8"><Loader2 size={28} className="text-[#006FC1] animate-spin" /></div>}
 
-      <div className="flex flex-wrap gap-4 mb-4 text-xs">
+      {capacityAlerts.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {capacityAlerts.slice(0, 3).map(a => (
+            <div key={`${a.day}-${a.block}`} className="flex items-center gap-1.5 bg-[#FF82B6]/15 border border-[#FF82B6]/30 text-[#d45c8b] px-3 py-1.5 rounded-lg text-xs">
+              <AlertTriangle size={13} />
+              {a.day} {a.block}: {a.count} bloques — supera la capacidad estimada
+            </div>
+          ))}
+          {capacityAlerts.length > 3 && (
+            <div className="text-xs text-gray-500 px-2 py-1.5">+{capacityAlerts.length - 3} más</div>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-4 mb-4 text-xs items-center">
         <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#0AC0AB] text-white border-[#0AC0AB]">Aprobado</span>
         <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#E0E0E0] text-gray-700 border-gray-300">Por revisar</span>
         <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#555555] text-white border-[#555555]">Anulado</span>
         <span className="flex items-center gap-1.5 text-gray-500"><AlertTriangle size={12} className="text-[#FF82B6]" /> Conflicto de horario</span>
+        <span className="flex-1" />
+        <div className="flex gap-2">
+          <button onClick={() => handleBulkUpdate(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0AC0AB] text-white rounded-lg text-xs font-medium hover:bg-[#059e8a] transition-colors disabled:opacity-40"
+            disabled={proposals.length === 0}>
+            <ThumbsUp size={13} /> Aprobar Todos
+          </button>
+          <button onClick={() => handleBulkUpdate(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#555555] text-white rounded-lg text-xs font-medium hover:bg-[#444444] transition-colors disabled:opacity-40"
+            disabled={proposals.length === 0}>
+            <ThumbsDown size={13} /> Rechazar Todos
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -150,9 +203,6 @@ export function ManageDoctorAvailability() {
                     onClick={() => setPopover({ day, block, doctor: slot.doctor, specialty: slot.specialty, index: i, idBloque: slot.idBloque })}
                                 className={`relative px-1 py-0.5 rounded border cursor-pointer transition-colors ${statusStyle(slot.status, slot.conflict)}`}>
                                 <p className="truncate max-w-[90px] font-medium">{slot.doctor}</p>
-                                {slot.room && slot.status === "aprobado" && (
-                                  <p className="text-[9px] opacity-80">{slot.room}</p>
-                                )}
                                 {slot.conflict && (
                                   <span className="absolute -top-1 -right-1"><AlertTriangle size={9} className="text-[#FF82B6]" /></span>
                                 )}
@@ -172,14 +222,14 @@ export function ManageDoctorAvailability() {
 
       {popover && (() => {
         const cs = grid[popover.day]?.[popover.block]?.[popover.index];
-        const safeSlot: SlotInfo = cs ?? { idBloque: popover.idBloque, doctor: popover.doctor, specialty: popover.specialty, status: "por_revisar", conflict: false, room: null };
+        const safeSlot: SlotInfo = cs ?? { idBloque: popover.idBloque, doctor: popover.doctor, specialty: popover.specialty, status: "por_revisar", conflict: false };
         return (
           <PopoverPanel
             currentSlot={safeSlot}
             doctor={popover.doctor}
             specialty={popover.specialty}
             onClose={() => setPopover(null)}
-            onChangeStatus={(status, room) => handleChangeStatus(popover.day, popover.block, popover.index, status, room)}
+            onChangeStatus={(status) => handleChangeStatus(popover.day, popover.block, popover.index, status)}
           />
         );
       })()}
@@ -194,10 +244,9 @@ function PopoverPanel({
   doctor: string;
   specialty: string;
   onClose: () => void;
-  onChangeStatus: (status: SlotStatus, room?: string | null) => void;
+  onChangeStatus: (status: SlotStatus) => void;
 }) {
   const [selectedAction, setSelectedAction] = useState<SlotStatus>(currentSlot.status ?? "por_revisar");
-  const [selectedRoom, setSelectedRoom] = useState<string | null>(currentSlot.room);
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -230,34 +279,12 @@ function PopoverPanel({
           </div>
         </div>
 
-        {selectedAction === "aprobado" && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-[#05576D] mb-2">
-              Asignar Consultorio <span className="text-[#FF82B6]">*</span>
-            </label>
-            <div className="max-h-44 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
-              {CLINIC_ROOMS.map(room => {
-                const isSelected = selectedRoom === room;
-                return (
-                  <button key={room}
-                    onClick={() => setSelectedRoom(room)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 text-sm transition-colors ${isSelected ? "bg-[#0AC0AB]/10" : "hover:bg-gray-50"}`}>
-                    <span className={`font-medium ${isSelected ? "text-[#0AC0AB]" : "text-gray-700"}`}>{room}</span>
-                    <span className="text-xs font-medium text-[#0AC0AB]">Disponible</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         <div className="flex gap-3 pt-2 border-t border-gray-100">
           <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancelar</button>
           <button
-            disabled={selectedAction === "aprobado" && !selectedRoom}
             onClick={() => {
-              if (selectedAction === currentSlot.status && selectedRoom === currentSlot.room) { onClose(); return; }
-              onChangeStatus(selectedAction, selectedAction === "aprobado" ? selectedRoom : null);
+              if (selectedAction === currentSlot.status) { onClose(); return; }
+              onChangeStatus(selectedAction);
             }}
             className="flex-1 py-2 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
             Guardar
