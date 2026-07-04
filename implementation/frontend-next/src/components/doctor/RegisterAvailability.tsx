@@ -60,7 +60,6 @@ export function RegisterAvailability() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [dragging, setDragging] = useState<{ day: string; startIdx: number } | null>(null);
 
   const toggleCell = useCallback((day: string, idx: number) => {
     setSelections(prev => {
@@ -73,21 +72,6 @@ export function RegisterAvailability() {
       return { ...prev, [day]: current };
     });
   }, []);
-
-  const handleMouseDown = (day: string, idx: number) => setDragging({ day, startIdx: idx });
-  const handleMouseEnter = (day: string, idx: number) => {
-    if (dragging && dragging.day === day) {
-      const start = Math.min(dragging.startIdx, idx);
-      const end = Math.max(dragging.startIdx, idx);
-      setSelections(prev => {
-        const selected = HOURS.slice(start, end + 1);
-        const existing = prev[day] || [];
-        const merged = [...new Set([...existing, ...selected])].sort();
-        return { ...prev, [day]: merged };
-      });
-    }
-  };
-  const handleMouseUp = () => setDragging(null);
 
   const totalBlocks = Object.values(selections).reduce((sum, arr) => sum + arr.length, 0);
   const fieldErrors = computeErrors(selections);
@@ -153,9 +137,6 @@ export function RegisterAvailability() {
                           <td key={dayIdx} className={`px-1 py-0.5 ${isPast ? "bg-gray-100" : ""}`}>
                             <button
                               disabled={isPast}
-                              onMouseDown={() => !isPast && handleMouseDown(weekKey, idx)}
-                              onMouseEnter={() => !isPast && handleMouseEnter(weekKey, idx)}
-                              onMouseUp={handleMouseUp}
                               onClick={() => !isPast && toggleCell(weekKey, idx)}
                               className={`w-full py-2 rounded text-[10px] font-medium transition-colors border ${isPast ? "bg-gray-100 text-gray-300 cursor-not-allowed" : isSelected ? error ? "bg-[#FF82B6]/40 text-[#d45c8b] border-[#FF82B6]/50" : "bg-[#006FC1] text-white border-[#006FC1]" : "bg-gray-50 text-gray-600 border-gray-100 hover:bg-[#006FC1]/10"}`}
                             >

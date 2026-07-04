@@ -13,9 +13,7 @@ for (let h = 7; h <= 21; h++) {
   }
 }
 
-const CLINIC_ROOMS = ["Consultorio 1", "Consultorio 2", "Consultorio 3", "Consultorio 4", "Consultorio 5", "Consultorio 6"];
-
-type SlotStatus = "por_revisar" | "aprobado" | "anulado";
+type SlotStatus = "aprobado" | "anulado";
 
 interface SlotInfo {
   idBloque: number;
@@ -23,16 +21,17 @@ interface SlotInfo {
   specialty: string;
   status: SlotStatus;
   conflict: boolean;
-  room: string | null;
 }
 
 export function ManageDoctorAvailability() {
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [specialty, setSpecialty] = useState<number | null>(null);
   const [proposals, setProposals] = useState<any[]>([]);
+  const [consultorioCount, setConsultorioCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [popover, setPopover] = useState<{ day: string; block: string; doctor: string; specialty: string; index: number; idBloque: number } | null>(null);
   const [successMsg, setSuccessMsg] = useState("");
+  const [localChanges, setLocalChanges] = useState<Record<string, SlotStatus>>({});
 
   useEffect(() => {
     especialidadesService.getAll().then(res => setSpecialties(res.data ?? [])).catch(() => {});
@@ -41,9 +40,17 @@ export function ManageDoctorAvailability() {
   useEffect(() => {
     if (specialty !== null) {
       setLoading(true);
-      disponibilidadService.getPendientes(specialty)
-        .then(res => setProposals(res.data ?? []))
-        .catch(() => setProposals([]))
+      setLocalChanges({});
+      setConsultorioCount(0);
+      Promise.all([
+        disponibilidadService.getPendientes(specialty),
+        especialidadesService.getCantidadConsultorios(specialty),
+      ])
+        .then(([propRes, consRes]) => {
+          setProposals(propRes.data ?? []);
+          setConsultorioCount(consRes.data?.cantidad ?? 0);
+        })
+        .catch(() => { setProposals([]); setConsultorioCount(0); })
         .finally(() => setLoading(false));
     }
   }, [specialty]);
@@ -51,54 +58,72 @@ export function ManageDoctorAvailability() {
   const grid = useMemo(() => {
     const g: Record<string, Record<string, SlotInfo[]>> = {};
     for (const day of DAYS) { g[day] = {}; for (const block of TIME_BLOCKS) g[day][block] = []; }
+
+    const slotConflictCount: Record<string, number> = {};
+
     for (const p of proposals) {
       const medico = (p.medico ?? "") as string;
       for (const b of (p.bloquesHorario ?? []) as any[]) {
         let dayIdx = 0;
         if (b.fecha) {
-          const d = new Date(b.fecha.split("-").reverse().join("-"));
+          const d = new Date(b.fecha + "T00:00:00");
           dayIdx = (d.getDay() + 6) % 7;
         }
         const dayName = DAYS[dayIdx];
         const blockTime = (b.horaInicio ?? "").slice(0, 5);
+        const conflictKey = `${b.fecha}_${blockTime}`;
+        slotConflictCount[conflictKey] = (slotConflictCount[conflictKey] ?? 0) + 1;
+      }
+    }
+
+    for (const p of proposals) {
+      const medico = (p.medico ?? "") as string;
+      for (const b of (p.bloquesHorario ?? []) as any[]) {
+        let dayIdx = 0;
+        if (b.fecha) {
+          const d = new Date(b.fecha + "T00:00:00");
+          dayIdx = (d.getDay() + 6) % 7;
+        }
+        const dayName = DAYS[dayIdx];
+        const blockTime = (b.horaInicio ?? "").slice(0, 5);
+        const conflictKey = `${b.fecha}_${blockTime}`;
+        const hasConflict = consultorioCount > 0 && (slotConflictCount[conflictKey] ?? 0) > consultorioCount;
         if (g[dayName]?.[blockTime]) {
           g[dayName][blockTime].push({
             idBloque: b.idBloque ?? 0,
             doctor: medico,
             specialty: "",
-            status: "por_revisar",
-            conflict: false,
-            room: null,
+            status: "aprobado",
+            conflict: hasConflict,
           });
         }
       }
     }
     return g;
-  }, [proposals]);
+  }, [proposals, consultorioCount]);
 
-  const handleChangeStatus = async (day: string, block: string, index: number, newStatus: SlotStatus, room?: string | null) => {
-    const slot = grid[day]?.[block]?.[index];
-    if (!slot) return;
-    try {
-      await disponibilidadService.actualizar([{ idAsignacion: slot.idBloque, aprobado: newStatus === "aprobado" }]);
-      setPopover(null);
-      setSuccessMsg(`Bloque de ${slot.doctor} actualizado a "${newStatus === "por_revisar" ? "Por revisar" : newStatus === "aprobado" ? "Aprobado" : "Anulado"}".`);
-      setTimeout(() => setSuccessMsg(""), 3000);
-    } catch {
-      setSuccessMsg("Error al actualizar el bloque.");
-      setTimeout(() => setSuccessMsg(""), 3000);
-    }
+  const getEffectiveStatus = (day: string, block: string, slot: SlotInfo): string => {
+    const key = `${day}_${block}_${slot.idBloque}`;
+    if (localChanges[key] !== undefined) return localChanges[key];
+    if (slot.conflict) return "conflicto";
+    return "aprobado";
+  };
+
+  const handleLocalSave = (day: string, block: string, slot: SlotInfo, newStatus: "aprobado" | "anulado") => {
+    const key = `${day}_${block}_${slot.idBloque}`;
+    setLocalChanges(prev => ({ ...prev, [key]: newStatus }));
+    setPopover(null);
   };
 
   const slotsForSpecialty = (day: string, block: string): SlotInfo[] => {
     return grid[day]?.[block] ?? [];
   };
 
-  const statusStyle = (status: SlotStatus, conflict: boolean): string => {
+  const statusStyle = (status: string): string => {
     if (status === "aprobado") return "bg-[#0AC0AB] text-white border-[#0AC0AB]";
     if (status === "anulado") return "bg-[#555555] text-white border-[#555555] line-through";
-    if (conflict) return "bg-[#E0E0E0] text-gray-700 border-[#FF82B6] ring-2 ring-[#FF82B6]";
-    return "bg-[#E0E0E0] text-gray-700 border-gray-300";
+    if (status === "conflicto") return "bg-[#FF82B6]/20 text-[#d45c8b] border-[#FF82B6] ring-2 ring-[#FF82B6]";
+    return "bg-gray-100 text-gray-400";
   };
 
   return (
@@ -121,9 +146,8 @@ export function ManageDoctorAvailability() {
 
       <div className="flex flex-wrap gap-4 mb-4 text-xs">
         <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#0AC0AB] text-white border-[#0AC0AB]">Aprobado</span>
-        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#E0E0E0] text-gray-700 border-gray-300">Por revisar</span>
         <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#555555] text-white border-[#555555]">Anulado</span>
-        <span className="flex items-center gap-1.5 text-gray-500"><AlertTriangle size={12} className="text-[#FF82B6]" /> Conflicto de horario</span>
+        <span className="flex items-center gap-1.5"><AlertTriangle size={12} className="text-[#FF82B6]" /> Conflicto de horario</span>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -145,15 +169,13 @@ export function ManageDoctorAvailability() {
                       <td key={day} className="px-0.5 py-0.5 align-top">
                         <div className="flex flex-col gap-0.5 min-h-5">
                           {slots.map((slot, i) => {
+                            const effStatus = getEffectiveStatus(day, block, slot);
                             return (
                   <div key={i}
                     onClick={() => setPopover({ day, block, doctor: slot.doctor, specialty: slot.specialty, index: i, idBloque: slot.idBloque })}
-                                className={`relative px-1 py-0.5 rounded border cursor-pointer transition-colors ${statusStyle(slot.status, slot.conflict)}`}>
+                                className={`relative px-1 py-0.5 rounded border cursor-pointer transition-colors ${statusStyle(effStatus)}`}>
                                 <p className="truncate max-w-[90px] font-medium">{slot.doctor}</p>
-                                {slot.room && slot.status === "aprobado" && (
-                                  <p className="text-[9px] opacity-80">{slot.room}</p>
-                                )}
-                                {slot.conflict && (
+                                {effStatus === "conflicto" && (
                                   <span className="absolute -top-1 -right-1"><AlertTriangle size={9} className="text-[#FF82B6]" /></span>
                                 )}
                               </div>
@@ -170,16 +192,81 @@ export function ManageDoctorAvailability() {
         </div>
       </div>
 
+      {(() => {
+        let hasConflicts = false;
+        for (const [day, daySlots] of Object.entries(grid)) {
+          for (const [block, slots] of Object.entries(daySlots)) {
+            for (const slot of slots) {
+              if (getEffectiveStatus(day, block, slot) === "conflicto") {
+                hasConflicts = true;
+              }
+            }
+          }
+        }
+        const hasProposals = Object.values(grid).some(daySlots =>
+          Object.values(daySlots).some(slots => slots.length > 0)
+        );
+        if (!hasProposals) return null;
+        return (
+          <div className="flex justify-end mt-4">
+            <button
+              disabled={hasConflicts}
+              onClick={async () => {
+                const updates: { idAsignacion: number; aprobado: boolean }[] = [];
+                for (const [day, daySlots] of Object.entries(grid)) {
+                  for (const [block, slots] of Object.entries(daySlots)) {
+                    for (const slot of slots) {
+                      const status = getEffectiveStatus(day, block, slot);
+                      updates.push({
+                        idAsignacion: slot.idBloque,
+                        aprobado: status === "aprobado",
+                      });
+                    }
+                  }
+                }
+                try {
+                  await disponibilidadService.actualizar(updates);
+                  setSuccessMsg("Disponibilidad aprobada exitosamente.");
+                  if (specialty !== null) {
+                    setLoading(true);
+                    Promise.all([
+                      disponibilidadService.getPendientes(specialty),
+                      especialidadesService.getCantidadConsultorios(specialty),
+                    ])
+                      .then(([propRes, consRes]) => {
+                        setProposals(propRes.data ?? []);
+                        setConsultorioCount(consRes.data?.cantidad ?? 0);
+                      })
+                      .catch(() => { setProposals([]); setConsultorioCount(0); })
+                      .finally(() => setLoading(false));
+                  }
+                  setLocalChanges({});
+                } catch {
+                  setSuccessMsg("Error al guardar la disponibilidad.");
+                }
+                setTimeout(() => setSuccessMsg(""), 3000);
+              }}
+              className="px-8 py-3 bg-[#0AC0AB] text-white rounded-lg font-semibold hover:bg-[#059688] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
+              Aprobar Todo
+            </button>
+          </div>
+        );
+      })()}
+
       {popover && (() => {
         const cs = grid[popover.day]?.[popover.block]?.[popover.index];
-        const safeSlot: SlotInfo = cs ?? { idBloque: popover.idBloque, doctor: popover.doctor, specialty: popover.specialty, status: "por_revisar", conflict: false, room: null };
+        const safeSlot: SlotInfo = cs ?? {
+          idBloque: popover.idBloque, doctor: popover.doctor,
+          specialty: popover.specialty, status: "aprobado", conflict: false,
+        };
         return (
           <PopoverPanel
             currentSlot={safeSlot}
             doctor={popover.doctor}
             specialty={popover.specialty}
+            currentStatus={getEffectiveStatus(popover.day, popover.block, safeSlot)}
             onClose={() => setPopover(null)}
-            onChangeStatus={(status, room) => handleChangeStatus(popover.day, popover.block, popover.index, status, room)}
+            onSave={(newStatus) => handleLocalSave(popover.day, popover.block, safeSlot, newStatus)}
           />
         );
       })()}
@@ -188,16 +275,18 @@ export function ManageDoctorAvailability() {
 }
 
 function PopoverPanel({
-  currentSlot, doctor, specialty, onClose, onChangeStatus,
+  currentSlot, doctor, specialty, currentStatus, onClose, onSave,
 }: {
   currentSlot: SlotInfo;
   doctor: string;
   specialty: string;
+  currentStatus: string;
   onClose: () => void;
-  onChangeStatus: (status: SlotStatus, room?: string | null) => void;
+  onSave: (status: "aprobado" | "anulado") => void;
 }) {
-  const [selectedAction, setSelectedAction] = useState<SlotStatus>(currentSlot.status ?? "por_revisar");
-  const [selectedRoom, setSelectedRoom] = useState<string | null>(currentSlot.room);
+  const [selectedAction, setSelectedAction] = useState<"aprobado" | "anulado">(
+    currentStatus === "anulado" ? "anulado" : "aprobado"
+  );
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -206,60 +295,43 @@ function PopoverPanel({
           <h3 className="font-semibold text-[#05576D] text-sm">Gestionar Bloque</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
-
         <div className="space-y-1.5 text-sm mb-4 bg-gray-50 rounded-xl p-3">
           <p><span className="text-gray-500">Doctor:</span> <strong>{doctor}</strong></p>
           <p><span className="text-gray-500">Especialidad:</span> {specialty}</p>
+          {currentStatus === "conflicto" && (
+            <p className="text-xs text-[#d45c8b] flex items-center gap-1 mt-2">
+              <AlertTriangle size={12} /> Conflicto de consultorios
+            </p>
+          )}
         </div>
-
         <div className="mb-4">
           <label className="block text-sm font-medium text-[#05576D] mb-2">Estado del bloque</label>
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => setSelectedAction("por_revisar")}
-              className={`py-2 rounded-lg text-xs font-medium border transition-colors ${selectedAction === "por_revisar" ? "bg-[#E0E0E0] text-gray-800 border-gray-400 ring-2 ring-gray-300" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
-              Por revisar
-            </button>
+          <div className="grid grid-cols-2 gap-2">
             <button onClick={() => setSelectedAction("aprobado")}
-              className={`py-2 rounded-lg text-xs font-medium border transition-colors ${selectedAction === "aprobado" ? "bg-[#0AC0AB] text-white border-[#0AC0AB] ring-2 ring-[#0AC0AB]/40" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
+              className={`py-2.5 rounded-lg text-xs font-medium border transition-colors ${
+                selectedAction === "aprobado"
+                  ? "bg-[#0AC0AB] text-white border-[#0AC0AB] ring-2 ring-[#0AC0AB]/40"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}>
               Aprobado
             </button>
             <button onClick={() => setSelectedAction("anulado")}
-              className={`py-2 rounded-lg text-xs font-medium border transition-colors ${selectedAction === "anulado" ? "bg-[#555555] text-white border-[#555555] ring-2 ring-gray-400" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
+              className={`py-2.5 rounded-lg text-xs font-medium border transition-colors ${
+                selectedAction === "anulado"
+                  ? "bg-[#555555] text-white border-[#555555] ring-2 ring-gray-400"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}>
               Anulado
             </button>
           </div>
         </div>
-
-        {selectedAction === "aprobado" && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-[#05576D] mb-2">
-              Asignar Consultorio <span className="text-[#FF82B6]">*</span>
-            </label>
-            <div className="max-h-44 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
-              {CLINIC_ROOMS.map(room => {
-                const isSelected = selectedRoom === room;
-                return (
-                  <button key={room}
-                    onClick={() => setSelectedRoom(room)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 text-sm transition-colors ${isSelected ? "bg-[#0AC0AB]/10" : "hover:bg-gray-50"}`}>
-                    <span className={`font-medium ${isSelected ? "text-[#0AC0AB]" : "text-gray-700"}`}>{room}</span>
-                    <span className="text-xs font-medium text-[#0AC0AB]">Disponible</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         <div className="flex gap-3 pt-2 border-t border-gray-100">
-          <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancelar</button>
+          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+            Cancelar
+          </button>
           <button
-            disabled={selectedAction === "aprobado" && !selectedRoom}
-            onClick={() => {
-              if (selectedAction === currentSlot.status && selectedRoom === currentSlot.room) { onClose(); return; }
-              onChangeStatus(selectedAction, selectedAction === "aprobado" ? selectedRoom : null);
-            }}
-            className="flex-1 py-2 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            onClick={() => { onSave(selectedAction); onClose(); }}
+            className="flex-1 py-2.5 bg-[#006FC1] text-white rounded-lg text-sm font-medium hover:bg-[#005a9e] transition-colors">
             Guardar
           </button>
         </div>

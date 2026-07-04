@@ -6,4 +6,7 @@ export const especialidadesService = {
 
   getMedicos: (idEspecialidad: number) =>
     api.get<{ message: string; codigo: string; data: { idMedico: string; nombre: string; descripcion: string }[] }>(`/especialidades/${idEspecialidad}/medicos`),
+
+  getCantidadConsultorios: (idEspecialidad: number) =>
+    api.get<{ message: string; codigo: string; data: { idEspecialidad: number; cantidad: number } }>(`/especialidades/${idEspecialidad}/consultorios/cantidad`),
 };
