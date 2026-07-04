@@ -46,3 +46,20 @@ export interface Patient {
   email: string;
   phone: string;
 }
+
+export interface Especialidad {
+  idEspecialidad: number;
+  nombre: string;
+  descripcion: string;
+}
+
+export interface Medico {
+  idMedico: string;
+  nombre: string;
+}
+
+export interface Horario {
+  fecha: string;
+  horaInicio: string;
+  horaFin: string;
+}
