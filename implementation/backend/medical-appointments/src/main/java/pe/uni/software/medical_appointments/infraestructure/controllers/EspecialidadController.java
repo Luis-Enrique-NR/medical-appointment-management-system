@@ -9,8 +9,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import pe.uni.software.medical_appointments.application.dtos.consultorio.response.GetCantidadConsultorioResponse;
 import pe.uni.software.medical_appointments.application.dtos.especialidad.response.GetEspecialidadResponse;
 import pe.uni.software.medical_appointments.application.dtos.medico.response.GetMedicoResponse;
+import pe.uni.software.medical_appointments.application.services.ConsultorioService;
 import pe.uni.software.medical_appointments.application.services.EspecialidadService;
 import pe.uni.software.medical_appointments.application.services.MedicoService;
 import pe.uni.software.medical_appointments.util.ApiResponse;
@@ -25,6 +27,7 @@ public class EspecialidadController {
 
     private final EspecialidadService especialidadService;
     private final MedicoService medicoService;
+    private final ConsultorioService consultorioService;
 
     @Operation(summary = "Listar todas las especialidades activas", description = "Devuelve una lista de todas las especialidades médicas activas.")
     @GetMapping
@@ -40,5 +43,13 @@ public class EspecialidadController {
     public ResponseEntity<ApiResponse<List<GetMedicoResponse>>> listarMedicosDisponiblesPorEspecialidad(@PathVariable Integer idEspecialidad) {
         List<GetMedicoResponse> medicos = medicoService.listarMedicosDisponiblesPorEspecialidad(idEspecialidad);
         return ResponseEntity.ok(new ApiResponse<>("Consulta exitosa", "200", medicos));
+    }
+
+    @Operation(summary = "Obtener cantidad de consultorios por especialidad", description = "Devuelve el número de consultorios habilitados para una especialidad específica.")
+    @GetMapping("/{idEspecialidad}/consultorios/cantidad")
+    @PreAuthorize("hasRole('SECRETARIA ADMINISTRATIVA')")
+    public ResponseEntity<ApiResponse<GetCantidadConsultorioResponse>> getCantidadConsultorio(@PathVariable Integer idEspecialidad) {
+        GetCantidadConsultorioResponse response = consultorioService.getCantidadConsultorio(idEspecialidad);
+        return ResponseEntity.ok(new ApiResponse<>("Consulta exitosa", "200", response));
     }
 }

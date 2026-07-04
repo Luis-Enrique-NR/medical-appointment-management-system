@@ -104,6 +104,8 @@ class MedicoServiceTest {
         List<GetHorariosResponse> response = medicoService.listarHorariosDisponiblesPorMedico(medicoId);
 
         assertEquals(1, response.size());
+        assertNotNull(response.get(0).getIdAsignacionBloque());
+        assertEquals(Integer.valueOf(100), response.get(0).getIdAsignacionBloque());
         assertEquals(LocalDate.of(2026, 7, 10), response.get(0).getFecha());
         assertEquals(LocalTime.of(8, 0), response.get(0).getHoraInicio());
         assertEquals(LocalTime.of(9, 0), response.get(0).getHoraFin());

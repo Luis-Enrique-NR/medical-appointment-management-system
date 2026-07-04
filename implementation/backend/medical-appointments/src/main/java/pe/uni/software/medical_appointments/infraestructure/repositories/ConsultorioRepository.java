@@ -12,4 +12,6 @@ public interface ConsultorioRepository extends JpaRepository<Consultorio, Intege
 
   @Query("SELECT c FROM Consultorio c JOIN FETCH c.especialidad WHERE c.habilitado = true")
   List<Consultorio> findAllHabilitadosWithEspecialidad();
+
+  Long countByEspecialidadId(Integer idEspecialidad);
 }

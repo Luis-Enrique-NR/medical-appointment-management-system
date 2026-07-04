@@ -13,6 +13,7 @@ import java.time.LocalTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GetHorariosResponse {
+    private Integer idAsignacionBloque;
     private LocalDate fecha;
     private LocalTime horaInicio;
     private LocalTime horaFin;
