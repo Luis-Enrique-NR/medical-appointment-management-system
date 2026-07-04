@@ -8,17 +8,10 @@ public class HorarioMapper {
 
     public static GetHorariosResponse toDto(AsignacionBloque asignacionBloque) {
         return GetHorariosResponse.builder()
+                .idAsignacionBloque(asignacionBloque.getId())
                 .fecha(asignacionBloque.getFecha())
                 .horaInicio(asignacionBloque.getBloqueHorario().getHoraInicio())
                 .horaFin(asignacionBloque.getBloqueHorario().getHoraFin())
-                .build();
-    }
-
-    public static GetHorariosResponse toDto(Cita cita) {
-        return GetHorariosResponse.builder()
-                .fecha(cita.getAsignacionBloque().getFecha())
-                .horaInicio(cita.getAsignacionBloque().getBloqueHorario().getHoraInicio())
-                .horaFin(cita.getAsignacionBloque().getBloqueHorario().getHoraFin())
                 .build();
     }
 }

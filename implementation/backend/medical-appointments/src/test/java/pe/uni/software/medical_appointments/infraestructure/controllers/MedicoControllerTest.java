@@ -57,7 +57,7 @@ class MedicoControllerTest {
     void listarHorarios_whenRolePaciente_debeRetornar200() throws Exception {
         UUID medicoId = UUID.randomUUID();
         List<GetHorariosResponse> mockHorarios = List.of(
-                GetHorariosResponse.builder().fecha(LocalDate.of(2026, 7, 10)).horaInicio(LocalTime.of(8, 0)).horaFin(LocalTime.of(9, 0)).build()
+                GetHorariosResponse.builder().idAsignacionBloque(100).fecha(LocalDate.of(2026, 7, 10)).horaInicio(LocalTime.of(8, 0)).horaFin(LocalTime.of(9, 0)).build()
         );
         when(medicoService.listarHorariosDisponiblesPorMedico(medicoId)).thenReturn(mockHorarios);
 
@@ -66,6 +66,7 @@ class MedicoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Consulta exitosa"))
                 .andExpect(jsonPath("$.codigo").value("200"))
+                .andExpect(jsonPath("$.data[0].idAsignacionBloque").value(100))
                 .andExpect(jsonPath("$.data[0].fecha").value("2026-07-10"))
                 .andExpect(jsonPath("$.data[0].horaInicio").value("08:00:00"))
                 .andExpect(jsonPath("$.data[0].horaFin").value("09:00:00"));

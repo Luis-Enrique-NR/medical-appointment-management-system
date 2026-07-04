@@ -13,8 +13,10 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import pe.uni.software.medical_appointments.application.dtos.consultorio.response.GetCantidadConsultorioResponse;
 import pe.uni.software.medical_appointments.application.dtos.especialidad.response.GetEspecialidadResponse;
 import pe.uni.software.medical_appointments.application.dtos.medico.response.GetMedicoResponse;
+import pe.uni.software.medical_appointments.application.services.ConsultorioService;
 import pe.uni.software.medical_appointments.application.services.EspecialidadService;
 import pe.uni.software.medical_appointments.application.services.MedicoService;
 import pe.uni.software.medical_appointments.service.JwtService;
@@ -39,6 +41,9 @@ class EspecialidadControllerTest {
 
     @MockitoBean
     private MedicoService medicoService;
+
+    @MockitoBean
+    private ConsultorioService consultorioService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -147,6 +152,39 @@ class EspecialidadControllerTest {
     @Test
     void listarMedicosPorEspecialidad_whenSinAuth_debeRetornar403() throws Exception {
         mockMvc.perform(get("/api/v1/especialidades/{idEspecialidad}/medicos", 1)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+    }
+
+    // --- GET /api/v1/especialidades/{idEspecialidad}/consultorios/cantidad ---
+
+    @Test
+    @WithMockUser(roles = {"SECRETARIA ADMINISTRATIVA"})
+    void getCantidadConsultorio_whenRoleSecretaria_debeRetornar200() throws Exception {
+        GetCantidadConsultorioResponse mockResponse = GetCantidadConsultorioResponse.builder()
+                .idEspecialidad(1)
+                .cantidad(5L)
+                .build();
+        when(consultorioService.getCantidadConsultorio(1)).thenReturn(mockResponse);
+
+        mockMvc.perform(get("/api/v1/especialidades/{idEspecialidad}/consultorios/cantidad", 1)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.idEspecialidad").value(1))
+                .andExpect(jsonPath("$.data.cantidad").value(5));
+    }
+
+    @Test
+    @WithMockUser(roles = {"PACIENTE"})
+    void getCantidadConsultorio_whenRoleNoAutorizado_debeRetornar403() throws Exception {
+        mockMvc.perform(get("/api/v1/especialidades/{idEspecialidad}/consultorios/cantidad", 1)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getCantidadConsultorio_whenSinAuth_debeRetornar403() throws Exception {
+        mockMvc.perform(get("/api/v1/especialidades/{idEspecialidad}/consultorios/cantidad", 1)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden());
     }
